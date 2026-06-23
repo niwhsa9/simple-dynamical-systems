@@ -7,6 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
+set(CMAKE_CUDA_ARCHITECTURES native) 
 
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
@@ -35,11 +36,12 @@ ament_target_dependencies(uav_demo
   rclcpp
   aeromis_core
   aeromis_msgs
+
   #aeromis_interfaces
   #aeromis_estimators
 )
-target_link_libraries(uav_demo sds_core)
-
+target_link_libraries(uav_demo sds_core  
+    )
 
 install(TARGETS uav_demo DESTINATION lib/${PROJECT_NAME})
 

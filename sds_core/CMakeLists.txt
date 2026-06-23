@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
 project(sds_core LANGUAGES CXX CUDA)
 #cmake_policy(SET CMP0057 NEW)
+enable_language(CUDA)
 
 set(CMAKE_CUDA_STANDARD 20)
 
@@ -10,7 +11,6 @@ find_package(Eigen3)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-enable_language(CUDA)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
