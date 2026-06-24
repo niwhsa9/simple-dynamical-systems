@@ -63,14 +63,15 @@ __global__ void rollout_kernel(
   int batch_size = u_seq.shape(0);
   if (batch_idx >= batch_size) return;
   int T = u_seq.shape(1);
+  printf("[rollout_kernel] batch_idx = %d, T = %d\n", batch_idx, T);
   x_seq.slice_1d<2>(batch_idx, 0).deep_copy_from(x0);
   float t = 0.0;
   for (int i = 0; i < T; ++i)
   {
-    t += dt;
     integrator(
         sys, dt, t, x_seq.slice_1d<2>(batch_idx, i),
         u_seq.slice_1d<2>(batch_idx, i), x_seq.slice_1d<2>(batch_idx, i + 1));
+    t += dt;
   }
 }
 
