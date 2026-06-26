@@ -41,8 +41,7 @@ Tensor<T, dim + 1> random_batch_tensor(
     for (int i = 0; i < mean.numel(); ++i)
     {
       std::normal_distribution<T> gauss(mean.data()[i], std_dev.data()[i]);
-      //tensor(b, i) = gauss(rng);
-      tensor.slice<0>(b).data()[i] = gauss(rng);
+      tensor.template slice<0>(b).data()[i] = gauss(rng);
     }
   return tensor;
 }
@@ -114,7 +113,7 @@ std::tuple<Tensor<T, 2>, Tensor<T, 2>> cem_mean_std(
       std_dev(t, j) = std::sqrt(std_dev(t, j) / float(num_elites) + 1e-6f);
     }
 
-  return {mean, std_dev};
+  return std::make_tuple(std::move(mean), std::move(std_dev));
 }
 
 // One thread per rollout — evaluates CostFunc on that rollout's x_seq/u_seq

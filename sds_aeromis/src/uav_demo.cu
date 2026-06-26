@@ -219,7 +219,7 @@ int main()
   Qf(9) = 1.0;
   Tensor<float, 1> R(manager.get_aerial_vehicle_gpu().get_n_u());
   R.fill(0.01f);
-  R(3) = 10000;
+  //R(3) = 10000;
 
   auto cost =
       [target = x_target.view(), Qf = Qf.view(), R = R.view()] __device__(
@@ -229,13 +229,13 @@ int main()
   float dt = 0.05f;
   auto tape = sds::cem(
       manager.get_aerial_vehicle_gpu(), integrator, x0, cost, 20, dt, 1024, 100,
-      200, 0.5f);
+      180, 0.5f);
 
   TensorView<float, 3> tape_view = tape.view().unsqueeze();
   auto opt_rollout = sds::rollout_gpu(
       manager.get_aerial_vehicle_gpu(), integrator, x0.view(), tape_view, dt);
 
-  rollout_to_csv(manager, opt_rollout.slice<0>(0), tape.view(), dt);
+  rollout_to_csv(manager, opt_rollout.template slice<0>(0), tape.view(), dt);
 
 
   return 0;

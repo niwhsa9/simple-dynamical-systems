@@ -47,7 +47,7 @@ def vis_from_df(df : pd.DataFrame):
 
     plotter = pv.Plotter()
     draw_pose(plotter, np.array([0, 0, 0]), [0, 0, 0, 1], scale=0.2)
-    for p, r in list(zip(xyz, quat))[::2]:
+    for p, r in list(zip(xyz, quat))[::]:
         #draw_pose(ax, p, r, s=0.1)
         draw_pose(plotter, p, r, scale=0.1)
 
@@ -154,5 +154,5 @@ if __name__ == "__main__":
     #df = pd.read_csv(sys.argv[1])
     df = pd.read_csv(sys.stdin)
     plotter = vis_from_df(df)
-    #plotter.show()
+    plotter.show()
     plt.show()

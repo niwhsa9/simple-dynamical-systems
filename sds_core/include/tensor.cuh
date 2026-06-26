@@ -188,7 +188,7 @@ struct TensorView {
     }
 
 
-    __host__ __device__ void deep_copy_from(const TensorView<const T, dim>& other) {
+    __host__ __device__ void deep_copy_from(const TensorView<T, dim>& other) {
         size_t n = numel();
         for (size_t i = 0; i < n; ++i) {
             data_[i] = other.data_[i];

@@ -81,7 +81,7 @@ __host__ __device__ void clamp_to_bounds(
 template <DynamicalSystem Sys, typename Integrator>
 __host__ __device__ void rollout(
     int batch_idx, Sys& sys, Integrator& integrator,
-    const TensorView<const float, 1>& x0, TensorView<float, 3>& u_seq, float dt,
+    const TensorView<float, 1>& x0, TensorView<float, 3>& u_seq, float dt,
     TensorView<float, 3>& x_seq)
 {
   int T = u_seq.shape(1);
@@ -111,7 +111,7 @@ __host__ __device__ void rollout(
 
 template <DynamicalSystem Sys, typename Integrator>
 __global__ void rollout_kernel(
-    Sys sys, Integrator integrator, const TensorView<const float, 1> x0,
+    Sys sys, Integrator integrator, const TensorView<float, 1> x0,
     TensorView<float, 3> u_seq, float dt, TensorView<float, 3> x_seq)
 {
   int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
