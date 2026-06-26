@@ -22,7 +22,7 @@ find_package(aeromis_msgs REQUIRED)
 #find_package(sds_core REQUIRED)
 
 
-add_executable(uav_demo src/uav_demo.cu)
+add_executable(uav_demo example/uav_perch_demo.cu src/aerial_vehicle.cu)
 set_target_properties(uav_demo PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
   CUDA_RESOLVE_DEVICE_SYMBOLS ON
@@ -40,8 +40,7 @@ ament_target_dependencies(uav_demo
   #aeromis_interfaces
   #aeromis_estimators
 )
-target_link_libraries(uav_demo sds_core  
-    )
+target_link_libraries(uav_demo sds_core  )
   target_compile_options(uav_demo PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>)
 
 install(TARGETS uav_demo DESTINATION lib/${PROJECT_NAME})

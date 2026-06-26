@@ -46,7 +46,7 @@ Tensor<T, dim + 1> random_batch_tensor(
   return tensor;
 }
 
-__device__ float quadratic_target_cost(
+__device__ inline float quadratic_target_cost(
     const TensorView<float, 1>& x_target, const TensorView<float, 1>& Qf,
     const TensorView<float, 1>& Rf, const TensorView<float, 2>& x_seq,
     const TensorView<float, 2>& u_seq)
