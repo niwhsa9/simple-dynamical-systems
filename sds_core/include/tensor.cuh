@@ -119,6 +119,21 @@ struct TensorView {
         return v;
     }
 
+
+    // add dummy outter dimension of 1
+    __host__ __device__ TensorView<T, dim + 1> unsqueeze() const {
+        TensorView<T, dim + 1> v;
+        v.data_ = data_;
+        v.shape_[0] = 1;
+        v.strides_[0] = numel();
+        for (int i = 0; i < dim; ++i) {
+            v.shape_[i + 1]   = shape_[i];
+            v.strides_[i + 1] = strides_[i];
+        }
+        return v;
+    }
+
+
     // ------------------------------------------------------------------
     // slice_1d — fix all dimensions except `kept_dim`, return a 1-D view.
     //

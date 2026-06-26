@@ -42,6 +42,7 @@ ament_target_dependencies(uav_demo
 )
 target_link_libraries(uav_demo sds_core  
     )
+  target_compile_options(uav_demo PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>)
 
 install(TARGETS uav_demo DESTINATION lib/${PROJECT_NAME})
 
