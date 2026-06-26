@@ -49,6 +49,11 @@ concept Integrator =
       { integrator(sys, dt, t, x, u, x_next) };
     };
 
+//template <typename P>
+//concept Policy = requires(P policy, float t, ) {
+//  { policy(t, u) };
+//};
+
 // NOTE(amg): RK2 can allocate it's own memory as needed, but in fact in this
 // case, does not even need to be a functor at all
 class RK2
