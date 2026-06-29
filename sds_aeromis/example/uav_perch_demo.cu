@@ -3,10 +3,11 @@
 #include <iostream>
 
 #include "aeromis_core/util/array.hpp"
-#include "sds_core.cuh"
-#include "sds_control.cuh"
 #include "sds_aeromis/aerial_vehicle.cuh"
+#include "sds_control.cuh"
+#include "sds_core.cuh"
 using namespace sds_aeromis;
+
 int main()
 {
   AerialVehicleManager manager(std::filesystem::path(
@@ -47,20 +48,27 @@ int main()
 
   auto cost =
       [target = x_target.view(), Qf = Qf.view(), R = R.view()] __device__(
-          const TensorView<float, 2> &x_seq, const TensorView<float, 2> &u_seq) -> float
+          const TensorView<float, 2> &x_seq,
+          const TensorView<float, 2> &u_seq) -> float
   { return sds::quadratic_target_cost(target, Qf, R, x_seq, u_seq); };
 
   float dt = 0.05f;
-  auto tape = sds::cem(
-      manager.get_aerial_vehicle_gpu(), integrator, x0, cost, 20, dt, 1024, 100,
-      180, 0.5f);
+
+  auto av_plant = [&](const TensorView<float, 1> &x0,
+                      TensorView<float, 3> u_seq, float dt) -> Tensor<float, 3>
+  {
+    auto sys = manager.get_aerial_vehicle_gpu();
+    return sds::rollout_gpu(sys, integrator, x0, u_seq, dt);
+  };
+
+  int n_u = manager.get_aerial_vehicle_gpu().get_n_u();
+  auto tape = sds::cem(av_plant, x0, cost, 20, n_u, dt, 1024, 100, 180, 0.5f);
 
   TensorView<float, 3> tape_view = tape.view().unsqueeze();
   auto opt_rollout = sds::rollout_gpu(
       manager.get_aerial_vehicle_gpu(), integrator, x0.view(), tape_view, dt);
 
   rollout_to_csv(manager, opt_rollout.template slice<0>(0), tape.view(), dt);
-
 
   return 0;
 }
