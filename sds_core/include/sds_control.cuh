@@ -5,8 +5,8 @@
 #include <iostream>
 #include <memory>
 #include <random>
-#include <vector>
 #include <span>
+#include <vector>
 
 #include "sds_core.cuh"
 #include "tensor.cuh"
@@ -29,12 +29,11 @@ Tensor<T, dim + 1> random_batch_tensor(
     const TensorView<T, dim>& mean, const TensorView<T, dim>& std_dev,
     int batch_size)
 {
-  //Tensor<T, dim + 1> tensor(batch_size, mean.shape());
+  // Tensor<T, dim + 1> tensor(batch_size, mean.shape());
   std::array<int, dim + 1> shape;
   shape[0] = batch_size;
-  std::ranges::copy( std::span{mean.shape_}, shape.begin() + 1);
+  std::ranges::copy(std::span{mean.shape_}, shape.begin() + 1);
   Tensor<T, dim + 1> tensor(shape);
-
 
   std::mt19937 rng(42);
   for (int b = 0; b < batch_size; ++b)
@@ -132,14 +131,12 @@ __global__ void cost_kernel(
   costs(b) = cost(x_b, u_b);
 }
 
-template <DynamicalSystem Sys, typename Integ, typename Cost>
+template <Plant P, typename Cost>
 Tensor<float, 2> cem(
-    const Sys& sys, const Integ& integrator, const Tensor<float, 1>& x0,
-    const Cost& cost, int T, float dt, int n_samples = 512, int n_elites = 64,
+    const P plant, const TensorView<float, 1>& x0, const Cost& cost, int T,
+    int n_u, float dt, int n_samples = 512, int n_elites = 64,
     int n_iters = 100, float sigma_init = 0.5f)
 {
-  int n_u = sys.get_n_u();
-
   Tensor<float, 2> u_mean(T, n_u);
   u_mean.fill(0.0f);
 
@@ -150,8 +147,7 @@ Tensor<float, 2> cem(
   {
     auto u_samples =
         random_batch_tensor(u_mean.view(), u_std_dev.view(), n_samples);
-    auto x_samples =
-        sds::rollout_gpu(sys, integrator, x0, u_samples, dt);  // [N, T+1, n_x]
+    auto x_samples = plant(x0, u_samples.view(), dt);  // [N, T+1, n_x]
 
     Tensor<float, 1> costs(n_samples);
     cost_kernel<<<(n_samples + 255) / 256, 256>>>(

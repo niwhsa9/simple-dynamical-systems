@@ -49,10 +49,16 @@ concept Integrator =
       { integrator(sys, dt, t, x, u, x_next) };
     };
 
-//template <typename P>
-//concept Policy = requires(P policy, float t, ) {
-//  { policy(t, u) };
-//};
+template <typename P>
+concept Plant = requires(
+    P plant, TensorView<float, 1> x0, TensorView<float, 3> u_seq, float dt) {
+  { plant(x0, u_seq, dt) } -> std::convertible_to<Tensor<float, 3>>;
+};
+
+// template <typename P>
+// concept Policy = requires(P policy, float t, ) {
+//   { policy(t, u) };
+// };
 
 // NOTE(amg): RK2 can allocate it's own memory as needed, but in fact in this
 // case, does not even need to be a functor at all
@@ -126,10 +132,12 @@ __global__ void rollout_kernel(
 }
 
 // Note u is non-const due to bounds clamping
+// TODO(amg), maybe this thing need not to take a system at all, but rather a
+// function pointer to integrate and a struct with n_x, n_u, and bounds.
 template <DynamicalSystem Sys, typename Integrator>
 Tensor<typename Sys::ScalarType, 3> rollout_gpu(
-    const Sys& sys, const Integrator& integrator, const TensorView<float, 1>& x0,
-    TensorView<float, 3>& u_seq, float dt,
+    const Sys& sys, const Integrator& integrator,
+    const TensorView<float, 1>& x0, TensorView<float, 3>& u_seq, float dt,
     std::optional<std::tuple<int, int>> grid_block = std::nullopt)
 {
   int batch_size = u_seq.shape(0);
@@ -144,16 +152,15 @@ Tensor<typename Sys::ScalarType, 3> rollout_gpu(
     grid = std::get<0>(grid_block.value());
     block = std::get<1>(grid_block.value());
   }
-  rollout_kernel<<<grid, block>>>(
-      sys, integrator, x0, u_seq, dt, x_seq.view());
+  rollout_kernel<<<grid, block>>>(sys, integrator, x0, u_seq, dt, x_seq.view());
   CUDA_CHECK(cudaDeviceSynchronize());
   return x_seq;
 }
 
 template <DynamicalSystem Sys, typename Integrator>
 Tensor<typename Sys::ScalarType, 3> rollout_cpu(
-    const Sys& sys, const Integrator& integrator, const Tensor<float, 1>& x0,
-    Tensor<float, 3>& u_seq, float dt)
+    const Sys& sys, const Integrator& integrator,
+    const TensorView<float, 1>& x0, Tensor<float, 3>& u_seq, float dt)
 {
   int batch_size = u_seq.shape(0);
   int T = u_seq.shape(1);
