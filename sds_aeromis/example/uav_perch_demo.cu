@@ -1,11 +1,7 @@
-#include <aeromis_core/dynamical_systems/aerial_vehicle.hpp>
-#include <filesystem>
-#include <iostream>
-
-#include "aeromis_core/util/array.hpp"
 #include "sds_aeromis/aerial_vehicle.cuh"
 #include "sds_control.cuh"
 #include "sds_core.cuh"
+
 using namespace sds_aeromis;
 
 int main()

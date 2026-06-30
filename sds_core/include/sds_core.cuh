@@ -49,10 +49,11 @@ concept Integrator =
       { integrator(sys, dt, t, x, u, x_next) };
     };
 
-template <typename P>
-concept Plant = requires(
-    P plant, TensorView<float, 1> x0, TensorView<float, 3> u_seq, float dt) {
-  { plant(x0, u_seq, dt) } -> std::convertible_to<Tensor<float, 3>>;
+// A thing that does Rollouts given an x0 and inputs. Effectively a "Plant"
+template <typename P, typename Scalar>
+concept RolloutProvider = requires(
+    P plant, TensorView<Scalar, 1> x0, TensorView<Scalar, 3> u_seq, Scalar dt) {
+  { plant(x0, u_seq, dt) } -> std::convertible_to<Tensor<Scalar, 3>>;
 };
 
 // template <typename P>
@@ -160,7 +161,7 @@ Tensor<typename Sys::ScalarType, 3> rollout_gpu(
 template <DynamicalSystem Sys, typename Integrator>
 Tensor<typename Sys::ScalarType, 3> rollout_cpu(
     const Sys& sys, const Integrator& integrator,
-    const TensorView<float, 1>& x0, Tensor<float, 3>& u_seq, float dt)
+    const TensorView<float, 1>& x0, TensorView<float, 3>& u_seq, float dt)
 {
   int batch_size = u_seq.shape(0);
   int T = u_seq.shape(1);

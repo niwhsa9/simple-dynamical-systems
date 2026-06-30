@@ -14,6 +14,8 @@
 namespace sds
 {
 
+// concept Cost = ... TODO(amg)
+
 template <typename T, typename... Dims>
 Tensor<T, sizeof...(Dims)> random_tensor(Dims... dims)
 {
@@ -131,9 +133,9 @@ __global__ void cost_kernel(
   costs(b) = cost(x_b, u_b);
 }
 
-template <Plant P, typename Cost>
+template <RolloutProvider<float> P, typename Cost>
 Tensor<float, 2> cem(
-    const P plant, const TensorView<float, 1>& x0, const Cost& cost, int T,
+    const P& plant, const TensorView<float, 1>& x0, const Cost& cost, int T,
     int n_u, float dt, int n_samples = 512, int n_elites = 64,
     int n_iters = 100, float sigma_init = 0.5f)
 {
