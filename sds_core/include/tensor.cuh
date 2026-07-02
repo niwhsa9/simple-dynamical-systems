@@ -31,6 +31,10 @@
     }                                                                 \
   } while (0)
 
+struct AdoptPointer
+{
+};
+
 // ---------------------------------------------------------------------------
 // TensorView<T, dim>
 //
@@ -145,6 +149,19 @@ struct TensorView
     return v;
   }
 
+  __host__ __device__ TensorView<T, dim - 1> squeeze() const
+  {
+    static_assert(dim > 1, "Cannot squeeze a 1-D view.");
+    TensorView<T, dim - 1> v;
+    v.data_ = data_;
+    for (int i = 0; i < dim - 1; ++i)
+    {
+      v.shape_[i] = shape_[i + 1];
+      v.strides_[i] = strides_[i + 1];
+    }
+    return v;
+  }
+
   // ------------------------------------------------------------------
   // slice_1d — fix all dimensions except `kept_dim`, return a 1-D view.
   //
@@ -239,15 +256,30 @@ class Tensor : public TensorView<T, dim>
   using Base = TensorView<T, dim>;
 
  public:
+  enum Memory
+  {
+    Managed = 0,
+    Device = 1,
+    Host = 2,
+  } memory;
+
   // ------------------------------------------------------------------
   // Construction
   // ------------------------------------------------------------------
 
-  explicit Tensor(const std::array<int, dim>& shape)
+  explicit Tensor(
+      const std::array<int, dim>& shape, Memory memory = Memory::Managed)
+      : memory(memory)
   {
     for (int i = 0; i < dim; ++i) this->shape_[i] = shape[i];
     compute_strides();
-    CUDA_CHECK(cudaMallocManaged(&this->data_, this->numel() * sizeof(T)));
+    if (memory == Memory::Managed)
+      CUDA_CHECK(cudaMallocManaged(&this->data_, this->numel() * sizeof(T)));
+    else if (memory == Memory::Device)
+      CUDA_CHECK(cudaMalloc(&this->data_, this->numel() * sizeof(T)));
+    else if (memory == Memory::Host)
+      this->data_ = static_cast<T*>(malloc(this->numel() * sizeof(T)));
+    // CUDA_CHECK(cudaMallocManaged(&this->data_, this->numel() * sizeof(T)));
   }
 
   template <
@@ -255,6 +287,27 @@ class Tensor : public TensorView<T, dim>
   explicit Tensor(Dims... dims)
       : Tensor(std::array<int, dim>{static_cast<int>(dims)...})
   {
+  }
+
+  // Copy from a TensorView (deep copy)
+  // explicit Tensor(const TensorView<T, dim>& view, Memory memory =
+  // Memory::Managed)
+  //    : Tensor(view.shape_, memory)
+  //{
+  //  this->deep_copy_from(view);
+  //}
+
+  Tensor<T, dim - 1> squeeze() &&
+  {
+    static_assert(dim > 1, "Cannot squeeze a 1-D Tensor.");
+
+    std::array<int, dim - 1> shape;
+    for (int i = 0; i < dim - 1; ++i) shape[i] = this->shape_[i + 1];
+
+    T* stolen = this->data_;
+    this->data_ = nullptr;
+
+    return Tensor<T, dim - 1>(AdoptPointer{}, stolen, shape);
   }
 
   // ------------------------------------------------------------------
@@ -265,7 +318,10 @@ class Tensor : public TensorView<T, dim>
   {
     if (this->data_)
     {
-      cudaFree(this->data_);
+      if (memory == Memory::Managed || memory == Memory::Device)
+        CUDA_CHECK(cudaFree(this->data_));
+      else if (memory == Memory::Host)
+        free(this->data_);
       this->data_ = nullptr;
     }
   }
@@ -358,6 +414,16 @@ class Tensor : public TensorView<T, dim>
   static void sync() { CUDA_CHECK(cudaDeviceSynchronize()); }
 
  private:
+  template <typename U, int other_dim>
+  friend class Tensor;
+
+  Tensor(AdoptPointer, T* data, const std::array<int, dim>& shape)
+  {
+    this->data_ = data;
+    for (int i = 0; i < dim; ++i) this->shape_[i] = shape[i];
+    compute_strides();
+  }
+
   void compute_strides()
   {
     this->strides_[dim - 1] = 1;

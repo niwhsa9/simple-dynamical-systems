@@ -11,65 +11,6 @@
 namespace sds
 {
 
-// TODO(amg) this is a little lazy, should probably replace with Tensor storage,
-// but then need to implement copy semantics on Tensor which I'd rather avoid.
-// Also, need to implement Tensors not backed by managed memory pages
-struct LinearPolicy
-{
-  Tensor<float, 3> K;          // N x nx x nu row major
-  Tensor<float, 2> x_nominal;  // N x nx row major
-  Tensor<float, 2> u_nominal;  // N x nu row major
-  double start_time, dt;
-  int nX, nU;
-
-  LinearPolicy(
-      const Tensor<float, 3>&& K_, const Tensor<float, 2>&& x_nominal_,
-      const Tensor<float, 2>&& u_nominal_, double start_time_, double dt_)
-      : K(std::move(K_)), x_nominal(std::move(x_nominal_)),
-        u_nominal(std::move(u_nominal_)), start_time(start_time_), dt(dt_),
-        nX(x_nominal.shape(1)), nU(u_nominal.shape(1))
-  {
-  }
-
-  LinearPolicy(const LinearPolicy& other)
-  {
-    K = other.K.clone();
-    x_nominal = other.x_nominal.clone();
-    u_nominal = other.u_nominal.clone();
-    start_time = other.start_time;
-    dt = other.dt;
-    nX = other.nX;
-    nU = other.nU;
-  }
-
-  // TODO(amg) this can wrap a simpler __host__, __device__ function with raw
-  // pointer interfaces
-  Tensor<float, 1> eval_policy(double t, const float* x)
-  {
-    // Convert x and u to eigen
-    Eigen::Map<const Eigen::VectorXf> x_eigen(x, x_nominal.shape(1));
-    // Compute the index of the time step
-    int step_lower = std::floor((t - start_time) / dt);
-    int step_upper = step_lower + 1;
-    float alpha = (t - start_time) / dt - step_lower;
-    // ensure we are in bounds
-    if (step_lower < 0 || step_upper >= x_nominal.shape(0))
-      throw std::runtime_error("Time t is out of bounds for policy evaluation");
-    // TODO: interpolate the gain and nominal trajectory to get the control
-    // input
-  }
-};
-
-// Returns the state and input trajectories of the plant when simulated with the
-// policy
-std::pair<Tensor<float, 2>, Tensor<float, 2>> simulate_plant_with_policy(
-    const RolloutProvider<float>& plant, const LinearPolicy& policy,
-    const TensorView<float, 1>& x0, double dt, double t, int T)
-{
-  Tensor<float, 2> x_traj(T + 1, policy.nX);
-  Tensor<float, 2> u_traj(T, policy.nU);
-}
-
 // This class is responsible for safely managing a thread that computes new
 // policies in the background. The user can request replans which are dispatched
 // to the background thread, and query for new policies as they become
