@@ -167,4 +167,32 @@ Tensor<float, 3> compute_tvlqr_gains(
   return K;
 }
 
+template <DynamicalSystem Dyn>
+std::pair<Tensor<float, 3>, Tensor<float, 3>> get_linearized_trajectory(
+    const Dyn& system, const TensorView<float, 2>& x_traj,
+    const TensorView<float, 2>& u_traj, float dt)
+{
+  const int N = x_traj.shape(0);
+  const int nX = system.get_n_x();
+  const int nU = system.get_n_u();
+
+  Tensor<float, 3> A(N, nX, nX);
+  Tensor<float, 3> B(N, nX, nU);
+
+  float t = 0.0f;
+  for (int i = 0; i < N; ++i)
+  {
+    TensorView<float, 1> x_i = x_traj.slice_1d<1>(i);
+    TensorView<float, 1> u_i = u_traj.slice_1d<1>(i);
+    TensorView<float, 2> A_i = A.slice<0>(i);
+    TensorView<float, 2> B_i = B.slice<0>(i);
+
+    system.get_dfdx(t, x_i.data(), u_i.data(), A_i.data());
+    system.get_dfdu(t, x_i.data(), u_i.data(), B_i.data());
+    t += dt;
+  }
+
+  return {std::move(A), std::move(B)};
+}
+
 }  // namespace sds

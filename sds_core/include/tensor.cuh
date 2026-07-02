@@ -405,6 +405,15 @@ class Tensor : public TensorView<T, dim>
     for (size_t i = 0; i < n; ++i) this->data_[i] = value;
   }
 
+  void set_diag(const std::vector<T>& diag)
+  {
+    if (diag.size() != this->shape_[0] || diag.size() != this->shape_[1])
+      throw std::runtime_error(
+          "set_diag: input vector size does not match tensor shape.");
+    this->fill(static_cast<T>(0));
+    for (size_t i = 0; i < diag.size(); ++i) this->operator()(i, i) = diag[i];
+  }
+
   void prefetch(int device = 0)
   {
     CUDA_CHECK(

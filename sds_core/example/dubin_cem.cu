@@ -24,7 +24,7 @@ class DubinsCar
   }
 
   __device__ __host__ void get_dfdx(
-      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx)
+      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx) const
   {
     dfdx[0] = 0.0f;
     dfdx[1] = 0.0f;
@@ -40,7 +40,7 @@ class DubinsCar
   }
 
   __device__ __host__ void get_dfdu(
-      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdu)
+      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdu) const
   {
     dfdu[0] = cos(x[2]);
     dfdu[1] = 0.0f;
@@ -91,29 +91,6 @@ class DubinsCar
   }
 };
 
-__device__ float target_cost(
-    TensorView<float, 1> x_target, TensorView<float, 2> x_seq,
-    TensorView<float, 2> u_seq)
-{
-  // final quadratic cost to target
-  float cost = 0.0f;
-  for (int i = 0; i < x_seq.shape(1); ++i)
-  {
-    float diff = x_seq(x_seq.shape(0) - 1, i) - x_target(i);
-    cost += diff * diff;
-  }
-  // running control cost
-  for (int t = 0; t < u_seq.shape(0); ++t)
-  {
-    for (int i = 0; i < u_seq.shape(1); ++i)
-    {
-      float u = u_seq(t, i);
-      cost += 0.01f * u * u;
-    }
-  }
-  return cost;
-}
-
 void dubin_to_csv(bool do_header, const Tensor<float, 2>& traj, int batch_index)
 {
   if (do_header) std::cout << "b,t,x,y,theta" << std::endl;
@@ -123,8 +100,6 @@ void dubin_to_csv(bool do_header, const Tensor<float, 2>& traj, int batch_index)
               << traj(i, 1) << "," << traj(i, 2) << "\n";
   }
 }
-
-// device lambda for AV
 
 int main()
 {
@@ -142,10 +117,7 @@ int main()
   x_target(2) = 0.1f;
 
   Tensor<float, 1> Qf(dubins_car.get_n_x());
-  Qf.fill(0.1f);
-  Qf(0) = 400;
-  Qf(1) = 400;
-  Qf(2) = 400;
+  Qf.fill(400.0f);
 
   Tensor<float, 1> R(dubins_car.get_n_u());
   R.fill(0.01f);
@@ -171,41 +143,26 @@ int main()
   auto nominal_traj_x =
       sds::rollout_gpu(dubins_car, integrator, x0.view(), tape_view, dt);
 
-  // Generate local TVLQR feedback
-  Tensor<float, 3> As(
-      tape.shape(0), dubins_car.get_n_x(), dubins_car.get_n_x());
-  Tensor<float, 3> Bs(
-      tape.shape(0), dubins_car.get_n_x(), dubins_car.get_n_u());
+  // Local TVLQR Policy Construction
   Tensor<float, 2> LQR_Qf(dubins_car.get_n_x(), dubins_car.get_n_x());
   Tensor<float, 2> LQR_R(dubins_car.get_n_u(), dubins_car.get_n_u());
   Tensor<float, 2> LQR_Q(dubins_car.get_n_x(), dubins_car.get_n_x());
-  LQR_Qf.fill(0.0f);
-  LQR_R.fill(0.0f);
-  LQR_Q.fill(0.0f);
-  for (int i = 0; i < dubins_car.get_n_x(); ++i) LQR_Qf(i, i) = Qf(i);
-  for (int i = 0; i < dubins_car.get_n_u(); ++i) LQR_R(i, i) = R(i);
-  for (int i = 0; i < tape.shape(0); ++i)
-  {
-    TensorView<float, 1> x_i = nominal_traj_x.slice_1d<2>(1, i);
-    TensorView<float, 1> u_i = tape.slice_1d<1>(i);
-    TensorView<float, 2> A_i = As.slice<0>(i);
-    TensorView<float, 2> B_i = Bs.slice<0>(i);
-    dubins_car.get_dfdx(0.0f, x_i.data(), u_i.data(), A_i.data());
-    dubins_car.get_dfdu(0.0f, x_i.data(), u_i.data(), B_i.data());
-  }
+  LQR_Qf.set_diag({400.0f, 400.0f, 100.0f});
+  LQR_R.set_diag({0.01f, 0.01f});
+  LQR_Q.set_diag({0.1f, 0.1f, 0.1f});
+  auto [As, Bs] = sds::get_linearized_trajectory(
+      dubins_car, nominal_traj_x.view().squeeze(), tape.view(), dt);
   auto Ks = sds::compute_tvlqr_gains(
       As, Bs, LQR_Q.view(), LQR_Qf.view(), LQR_R.view(), dt);
-
   auto nominal_traj_2d = nominal_traj_x.clone().squeeze();
-
   sds::LinearPolicy lqr_policy(
       std::move(Ks), std::move(nominal_traj_2d), std::move(tape), 0.0, dt);
 
+  // Simulate with perturbed initial condition
   Tensor<float, 1> x_perturb(3);
   x_perturb.fill(0.0);
   x_perturb(0) = 0.2f;
   x_perturb(1) = -0.2f;
-
   auto [x_sim, u_sim] = sds::simulate_plant_with_policy(
       dubin_plant, lqr_policy, x_perturb.view(), dt, 0.0, tape.shape(0));
 
