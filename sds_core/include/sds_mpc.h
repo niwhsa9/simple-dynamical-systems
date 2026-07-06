@@ -60,13 +60,14 @@ class ReplanManager
 
   std::unique_ptr<LinearPolicy> replan()
   {
-    // Project ahead
+    // Project state forward with the current policy to account for the time it
+    // actually takes to compute a new policy
     auto [x_proj, u_proj] = simulate_plant_with_policy(
         plant, current_request.current_policy, current_request.x0.view(),
         current_request.dt, current_request.request_time,
         current_request.horizon);
 
-    // Optimize policy from the projected state
+    // Optimize a new policy from the projected state
     return std::make_unique<LinearPolicy>(
         optimizer(x_proj.slice_1d<0>(current_request.project_steps)));
   }

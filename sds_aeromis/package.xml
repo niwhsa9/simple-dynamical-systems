@@ -13,6 +13,7 @@
   <test_depend>ament_lint_common</test_depend>
 
   <build_depend>aeromis_core</build_depend>
+  <build_depend>sds_core</build_depend>
 
 
   <export>

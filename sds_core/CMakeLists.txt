@@ -14,46 +14,62 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
-#set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G") 
-#set(CMAKE_CUDA_COMPILER /usr/bin/nvcc)
-
-#add_executable(vortex src/vortex_perch_mppi.cu src/vortex_model.cu src/flat_plate_glider.cu src/mppi.cu)
-#target_include_directories(vortex PRIVATE include)
-#target_include_directories(vortex SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
-#target_link_libraries(vortex cublas)
-#target_compile_options(vortex PRIVATE CUDA_FLAGS "-diag-suppress 20012" )
-
-#add_executable(rollout src/rollout_generator.cu src/vortex_model.cu src/flat_plate_glider.cu)
-#target_include_directories(rollout PRIVATE include)
-#target_include_directories(rollout SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
-#target_link_libraries(rollout cublas)
-
-#add_executable(main src/main.cu src/vortex_model.cu src/flat_plate_glider.cu src/mppi.cu)
-#target_include_directories(main PRIVATE include)
-#target_include_directories(main SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${SNOPT_INCLUDE_DIR})
-#target_link_libraries(main cublas ${SNOPT_LIBRARIES})
-
-#set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-#set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-#add_library(glider_dynamics STATIC src/flat_plate_glider.cu)
-#target_include_directories(glider_dynamics PRIVATE include)
-#set_target_properties(glider_dynamics PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-#set_target_properties(glider_dynamics PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-
-#add_executable(tvlqr src/tvlqr.cu src/vortex_model.cu src/flat_plate_glider.cu src/mppi.cu)
-#enable_language(CUDA)
-#target_include_directories(tvlqr PRIVATE include)
-#target_include_directories(tvlqr SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
-#target_link_libraries(tvlqr cublas)
 
 add_library(sds_core STATIC src/sds_core.cpp)
 #add_library(sds_core INTERFACE)
-target_include_directories(sds_core PUBLIC include ${EIGEN3_INCLUDE_DIR})
+target_include_directories(sds_core
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${EIGEN3_INCLUDE_DIR}>
+)
 #target_link_libraries(sds_core INTERFACE cublas)
 
 set_target_properties(sds_core PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
 )
+
+include(CMakePackageConfigHelpers)
+
+install(
+    TARGETS sds_core
+    EXPORT sds_coreTargets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+install(
+    DIRECTORY include/
+    DESTINATION include
+)
+
+install(
+    EXPORT sds_coreTargets
+    FILE sds_coreTargets.cmake
+    NAMESPACE sds_core::
+    DESTINATION lib/cmake/sds_core
+)
+
+configure_package_config_file(
+    cmake/sds_coreConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/sds_coreConfig.cmake
+    INSTALL_DESTINATION lib/cmake/sds_core
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/sds_coreConfigVersion.cmake
+    VERSION 1.0.0
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/sds_coreConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/sds_coreConfigVersion.cmake
+    DESTINATION lib/cmake/sds_core
+)
+
 
 
 add_executable(dubin_cem example/dubin_cem.cu)

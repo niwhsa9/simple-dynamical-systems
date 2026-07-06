@@ -167,8 +167,8 @@ Tensor<typename Sys::ScalarType, 3> rollout_cpu(
   int T = u_seq.shape(1);
   int n_x = sys.get_n_x();
   Tensor<float, 3> x_seq(batch_size, T + 1, n_x);
-  // for (int b = 0; b < batch_size; ++b)
-  //   rollout(b, sys, integrator, x0.view(), u_seq.view(), dt, x_seq.view());
+  for (int b = 0; b < batch_size; ++b)
+    rollout(b, sys, integrator, x0, u_seq, dt, x_seq.view());
   return x_seq;
 }
 

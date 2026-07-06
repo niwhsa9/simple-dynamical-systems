@@ -8,18 +8,56 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 set(CMAKE_CUDA_ARCHITECTURES native) 
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../sds_core ${CMAKE_BINARY_DIR}/sds_core)
+#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../sds_core ${CMAKE_BINARY_DIR}/sds_core)
 find_package(ament_cmake REQUIRED)
 find_package(aeromis_core REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(aeromis_msgs REQUIRED)
 #find_package(aeromis_interfaces REQUIRED)
 #find_package(aeromis_estimators REQUIRED)
-#find_package(sds_core REQUIRED)
+find_package(sds_core CONFIG REQUIRED)
+
+add_library(sds_aeromis STATIC src/aerial_vehicle.cu)
+target_include_directories(sds_aeromis
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${EIGEN3_INCLUDE_DIR}>
+        ${S}
+)
+ament_target_dependencies(sds_aeromis
+  rclcpp
+  aeromis_core
+  aeromis_msgs
+)
+target_link_libraries(sds_aeromis sds_core::sds_core)
+install(
+  TARGETS sds_aeromis
+  EXPORT export_sds_aeromis
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+ament_export_targets(export_sds_aeromis HAS_LIBRARY_TARGET)
+ament_export_include_directories(include)
+ament_export_dependencies(
+  rclcpp
+  aeromis_core
+  aeromis_msgs
+)
+
+#set_target_properties(sds_core PROPERTIES
+#  CUDA_SEPARABLE_COMPILATION ON
+#)
 
 
 add_executable(uav_demo example/uav_perch_demo.cu src/aerial_vehicle.cu)
@@ -40,7 +78,7 @@ ament_target_dependencies(uav_demo
   #aeromis_interfaces
   #aeromis_estimators
 )
-target_link_libraries(uav_demo sds_core  )
+target_link_libraries(uav_demo sds_core::sds_core )
   target_compile_options(uav_demo PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>)
 
 install(TARGETS uav_demo DESTINATION lib/${PROJECT_NAME})
