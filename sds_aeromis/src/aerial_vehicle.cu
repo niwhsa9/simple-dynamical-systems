@@ -1,10 +1,10 @@
-#include "sds_aeromis/aerial_vehicle.cuh"
-
 #include <iostream>
 
 #include "aeromis_core/util/array.hpp"
+#include "sds_aeromis/aerial_vehicle.cuh"
 
-namespace sds_aeromis {
+namespace sds_aeromis
+{
 
 // ---------------------------------------------------------------------------
 // AerialVehicle
@@ -15,8 +15,7 @@ __host__ AerialVehicle<Mem, Scalar>::AerialVehicle(
     aeromis_core::AerialVehicle<Mem, Scalar>* aerial_vehicle,
     aeromis_core::AerialVehicle<Mem, Scalar>* aerial_vehicle_cpu,
     uint8_t* memory_buffer)
-    : aerial_vehicle_(aerial_vehicle),
-      aerial_vehicle_cpu_(aerial_vehicle_cpu),
+    : aerial_vehicle_(aerial_vehicle), aerial_vehicle_cpu_(aerial_vehicle_cpu),
       memory_buffer(memory_buffer)
 {
   n_x = aerial_vehicle_cpu->get_n_x();
@@ -37,8 +36,7 @@ __device__ __host__ void AerialVehicle<Mem, Scalar>::dynamics(
   aeromis_core::Array<Mem, Scalar> dxdt_view(dxdt, n_x);
   aerial_vehicle_->dynamics(
       t, x_view, u_view, dxdt_view, batch_idx,
-      memory_buffer +
-          batch_idx * aerial_vehicle_->required_bytes_per_thread());
+      memory_buffer + batch_idx * aerial_vehicle_->required_bytes_per_thread());
 }
 
 template <typename Mem, typename Scalar>
@@ -54,19 +52,22 @@ __host__ __device__ int AerialVehicle<Mem, Scalar>::get_n_u() const
 }
 
 template <typename Mem, typename Scalar>
-__host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_x_names() const
+__host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_x_names()
+    const
 {
   return aerial_vehicle_cpu_->get_state_parameters().get_names();
 }
 
 template <typename Mem, typename Scalar>
-__host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_u_names() const
+__host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_u_names()
+    const
 {
   return aerial_vehicle_cpu_->get_input_parameters().get_names();
 }
 
 template <typename Mem, typename Scalar>
-__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_upper_bounds() const
+__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_upper_bounds()
+    const
 {
 #ifdef __CUDA_ARCH__
   auto* ptr = aerial_vehicle_;
@@ -77,7 +78,8 @@ __host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_upper_bounds() con
 }
 
 template <typename Mem, typename Scalar>
-__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_lower_bounds() const
+__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_lower_bounds()
+    const
 {
 #ifdef __CUDA_ARCH__
   auto* ptr = aerial_vehicle_;
@@ -88,7 +90,8 @@ __host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_x_lower_bounds() con
 }
 
 template <typename Mem, typename Scalar>
-__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_u_upper_bounds() const
+__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_u_upper_bounds()
+    const
 {
 #ifdef __CUDA_ARCH__
   auto* ptr = aerial_vehicle_;
@@ -99,7 +102,8 @@ __host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_u_upper_bounds() con
 }
 
 template <typename Mem, typename Scalar>
-__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_u_lower_bounds() const
+__host__ __device__ Scalar* AerialVehicle<Mem, Scalar>::get_u_lower_bounds()
+    const
 {
 #ifdef __CUDA_ARCH__
   auto* ptr = aerial_vehicle_;
@@ -185,4 +189,4 @@ void rollout_to_csv(
   }
 }
 
-} // namespace sds_aeromis
+}  // namespace sds_aeromis

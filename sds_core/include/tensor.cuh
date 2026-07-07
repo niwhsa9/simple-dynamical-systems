@@ -221,6 +221,11 @@ struct TensorView
   {
     size_t n = numel();
     for (size_t i = 0; i < n; ++i) data_[i] = other.data_[i];
+    // for (int i = 0; i < dim; ++i) TODO(amg) maybe check shape compatibility
+    //{
+    //   shape_[i] = other.shape_[i];
+    //   strides_[i] = other.strides_[i];
+    // }
   }
 
   // TODO(amg) might be a footgun to allow these implicit conversions, but makes
