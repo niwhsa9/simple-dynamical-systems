@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "sds_core.cuh"
+#include "sds_tvlqr.cuh"
 #include "tensor.cuh"
 
 namespace sds
@@ -18,8 +19,9 @@ namespace sds
 template <RolloutProvider<float> P, typename PolicyOptimizer>
 class ReplanManager
 {
-  ReplanManager(const P& plant, const PolicyOptimizer& p)
-      : plant(plant), optimizer(p)
+ public:
+  ReplanManager(P&& plant, PolicyOptimizer&& p)
+      : plant(std::move(plant)), optimizer(std::move(p))
   {
     std::thread replan_loop(
         [&]()
@@ -33,6 +35,8 @@ class ReplanManager
             lock.lock();
             new_policy = std::move(policy);
             state = READY;
+            replan_cv.notify_all();  // notify any threads waiting for a new
+                                     // policy to become available
           }
         });
     replan_loop.detach();
@@ -49,13 +53,12 @@ class ReplanManager
     if (state != READY)
       throw std::runtime_error("Called request_replan when not READY");
     replan_mutex.unlock();
-    current_request.horizon = horizon;
-    current_request.project_steps = project_steps;
-    current_request.request_time = cur_time;
-    current_request.x0 = x0;
-    current_request.current_policy = current_policy;
+
+    Tensor<float, 1> x0_copy(x0.shape(0));
+    current_request = std::make_unique<ReplanRequest>(
+        horizon, project_steps, cur_time, std::move(x0_copy), current_policy);
     state = REQUESTED;
-    replan_cv.notify_one();
+    replan_cv.notify_all();
   }
 
   std::unique_ptr<LinearPolicy> replan()
@@ -63,13 +66,17 @@ class ReplanManager
     // Project state forward with the current policy to account for the time it
     // actually takes to compute a new policy
     auto [x_proj, u_proj] = simulate_plant_with_policy(
-        plant, current_request.current_policy, current_request.x0.view(),
-        current_request.dt, current_request.request_time,
-        current_request.horizon);
+        plant, current_request->current_policy, current_request->x0.view(),
+        current_request->current_policy.dt, current_request->request_time,
+        current_request->horizon);
 
     // Optimize a new policy from the projected state
-    return std::make_unique<LinearPolicy>(
-        optimizer(x_proj.slice_1d<0>(current_request.project_steps)));
+    double projected_start_time =
+        current_request->request_time +
+        current_request->project_steps * current_request->current_policy.dt;
+    return std::make_unique<LinearPolicy>(optimizer(
+        x_proj.template slice_1d<1>(current_request->project_steps),
+        projected_start_time));
   }
 
   // Checks if the manager is in the READY state
@@ -102,6 +109,13 @@ class ReplanManager
     return std::move(new_policy);
   }
 
+  std::unique_ptr<LinearPolicy> get_policy_blocking()
+  {
+    std::unique_lock<std::mutex> lock(replan_mutex);
+    replan_cv.wait(lock, [&]() { return state == READY && new_policy; });
+    return std::move(new_policy);
+  }
+
  private:
   enum State
   {
@@ -126,7 +140,7 @@ class ReplanManager
   State state = READY;
 
   // internal state for the replan request
-  ReplanRequest current_request;
+  std::unique_ptr<ReplanRequest> current_request;
   PolicyOptimizer optimizer;
   P plant;
 };
@@ -137,9 +151,9 @@ class ReplanManager
 // command from the most recent available policy, which may either be the
 // currently supplied policy or the newly computed policy
 // Usage: while(true) { u = replan_iterate(...); send_to_motors(u);}
-template <typename P, PolicyOptimizer>
-std::vector<float> replan_iterate(
-    size_t horizon, size_t project_steps, double cur_time, double dt,
+template <typename P, typename PolicyOptimizer>
+Tensor<float, 1> replan_iterate(
+    size_t horizon, size_t project_steps, double cur_time,
     const TensorView<float, 1>& x_cur,
     std::unique_ptr<LinearPolicy>& cur_policy,
     ReplanManager<P, PolicyOptimizer>& replan_manager)
@@ -161,7 +175,7 @@ std::vector<float> replan_iterate(
   if (replan_manager.ready_to_replan())
   {
     replan_manager.request_replan(
-        horizon, project_steps, cur_time, dt, x_cur, *cur_policy);
+        horizon, project_steps, cur_time, x_cur, *cur_policy);
   }
   // Evaluate the current policy at the current time
   return cur_policy->eval_policy(cur_time, x_cur.data());

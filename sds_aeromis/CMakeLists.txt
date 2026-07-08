@@ -34,6 +34,11 @@ ament_target_dependencies(sds_aeromis
   aeromis_core
   aeromis_msgs
 )
+
+set_target_properties(sds_aeromis PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  #CUDA_RESOLVE_DEVICE_SYMBOLS ON
+)
 target_link_libraries(sds_aeromis sds_core::sds_core)
 install(
   TARGETS sds_aeromis

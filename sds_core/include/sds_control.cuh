@@ -135,9 +135,9 @@ __global__ void cost_kernel(
 
 template <RolloutProvider<float> P, typename Cost>
 Tensor<float, 2> cem(
-    const P& plant, const TensorView<float, 1>& x0, const Cost& cost, int T,
-    int n_u, float dt, int n_samples = 512, int n_elites = 64,
-    int n_iters = 100, float sigma_init = 0.5f)
+    P& plant, const TensorView<float, 1>& x0, const Cost& cost, int T, int n_u,
+    float dt, int n_samples = 512, int n_elites = 64, int n_iters = 100,
+    float sigma_init = 0.5f)
 {
   Tensor<float, 2> u_mean(T, n_u);
   u_mean.fill(0.0f);

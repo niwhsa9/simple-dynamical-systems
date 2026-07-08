@@ -145,6 +145,15 @@ __host__ AerialVehicleManager::AerialVehicleManager(
       aerial_vehicle_cpu_->required_bytes_per_thread() * 1024);
 }
 
+AerialVehicleManager::AerialVehicleManager(AerialVehicleManager&& other)
+{
+  aerial_vehicle_gpu_ = std::move(other.aerial_vehicle_gpu_);
+  aerial_vehicle_cpu_ = std::move(other.aerial_vehicle_cpu_);
+  gpu_memory_buffer = other.gpu_memory_buffer;
+  cpu_memory_buffer = std::move(other.cpu_memory_buffer);
+  other.gpu_memory_buffer = nullptr;
+}
+
 __device__ __host__ AerialVehicleManager::~AerialVehicleManager()
 {
   cudaFree(gpu_memory_buffer);

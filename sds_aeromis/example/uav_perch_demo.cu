@@ -9,6 +9,7 @@ int main()
   AerialVehicleManager manager(std::filesystem::path(
       "/home/ashwin/sources/aeromis/src/aeromis_simulator/urdf/edge540_24/"
       "edge540_24.uardf"));
+
   sds::RK2 integrator;
 
   Tensor<float, 1> x0(manager.get_aerial_vehicle_gpu().get_n_x());

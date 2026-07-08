@@ -5,10 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "sds_core.cuh"
 #include "sds_control.cuh"
+#include "sds_core.cuh"
 
-namespace sds_aeromis {
+namespace sds_aeromis
+{
 
 template <typename Mem, typename Scalar>
 class AerialVehicle
@@ -54,6 +55,8 @@ class AerialVehicleManager
 
   __device__ __host__ ~AerialVehicleManager();
 
+  AerialVehicleManager(AerialVehicleManager&& other);
+
   __host__ AerialVehicle<aeromis_core::GPU, float> get_aerial_vehicle_gpu();
   __host__ AerialVehicle<aeromis_core::CPU, double> get_aerial_vehicle_cpu();
 
@@ -70,4 +73,4 @@ void rollout_to_csv(
     AerialVehicleManager& manager, const TensorView<float, 2>& x_seq,
     const TensorView<float, 2>& u_seq, float dt);
 
-} // namespace sds_aeromis
+}  // namespace sds_aeromis

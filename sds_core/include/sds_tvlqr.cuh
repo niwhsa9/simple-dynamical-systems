@@ -33,6 +33,23 @@ struct LinearPolicy
   {
   }
 
+  // copy assignment
+  LinearPolicy& operator=(const LinearPolicy& other)
+  {
+    if (this != &other)
+    {
+      K = other.K.clone();
+      x_nominal = other.x_nominal.clone();
+      u_nominal = other.u_nominal.clone();
+
+      start_time = other.start_time;
+      dt = other.dt;
+      nX = other.nX;
+      nU = other.nU;
+    }
+    return *this;
+  }
+
   Tensor<float, 1> eval_policy(double t, const float* x) const
   {
     // ZOH: clamp to step_lower
@@ -57,7 +74,7 @@ struct LinearPolicy
 };
 
 std::pair<Tensor<float, 2>, Tensor<float, 2>> simulate_plant_with_policy(
-    const RolloutProvider<float> auto& plant, const LinearPolicy& policy,
+    RolloutProvider<float> auto& plant, const LinearPolicy& policy,
     const TensorView<float, 1>& x0, double dt, double t, int T)
 
 {
