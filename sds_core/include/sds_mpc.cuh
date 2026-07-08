@@ -20,8 +20,9 @@ template <RolloutProvider<float> P, typename PolicyOptimizer>
 class ReplanManager
 {
  public:
-  ReplanManager(P&& plant, PolicyOptimizer&& p)
-      : plant(std::move(plant)), optimizer(std::move(p))
+  // TODO(amg) maybe just move the PolicyOptimizer into this like the plant
+  ReplanManager(P&& plant, std::shared_ptr<PolicyOptimizer> p)
+      : plant(std::move(plant)), optimizer(p)
   {
     std::thread replan_loop(
         [&]()
@@ -35,8 +36,10 @@ class ReplanManager
             lock.lock();
             new_policy = std::move(policy);
             state = READY;
-            replan_cv.notify_all();  // notify any threads waiting for a new
-                                     // policy to become available
+            replan_cv
+                .notify_all();  // notify any threads that were blocked waiting
+                                // for a new policy to become available, only
+                                // matters for replan_blocking
           }
         });
     replan_loop.detach();
@@ -55,6 +58,7 @@ class ReplanManager
     replan_mutex.unlock();
 
     Tensor<float, 1> x0_copy(x0.shape(0));
+    x0_copy.deep_copy_from(x0);  // meh
     current_request = std::make_unique<ReplanRequest>(
         horizon, project_steps, cur_time, std::move(x0_copy), current_policy);
     state = REQUESTED;
@@ -74,9 +78,9 @@ class ReplanManager
     double projected_start_time =
         current_request->request_time +
         current_request->project_steps * current_request->current_policy.dt;
-    return std::make_unique<LinearPolicy>(optimizer(
+    return std::make_unique<LinearPolicy>(optimizer->operator()(
         x_proj.template slice_1d<1>(current_request->project_steps),
-        projected_start_time));
+        projected_start_time, current_request->current_policy));
   }
 
   // Checks if the manager is in the READY state
@@ -141,7 +145,7 @@ class ReplanManager
 
   // internal state for the replan request
   std::unique_ptr<ReplanRequest> current_request;
-  PolicyOptimizer optimizer;
+  std::shared_ptr<PolicyOptimizer> optimizer;
   P plant;
 };
 

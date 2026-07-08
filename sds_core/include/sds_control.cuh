@@ -49,8 +49,9 @@ Tensor<T, dim + 1> random_batch_tensor(
 
 __device__ inline float quadratic_target_cost(
     const TensorView<float, 1>& x_target, const TensorView<float, 1>& Qf,
-    const TensorView<float, 1>& Rf, const TensorView<float, 2>& x_seq,
-    const TensorView<float, 2>& u_seq)
+    const TensorView<float, 1>& Q, const TensorView<float, 1>& Rf,
+    const TensorView<float, 2>& x_seq, const TensorView<float, 2>& u_seq,
+    float dt = 0.0)
 {
   // final quadratic cost to target
   float cost = 0.0f;
@@ -65,7 +66,16 @@ __device__ inline float quadratic_target_cost(
     for (int i = 0; i < u_seq.shape(1); ++i)
     {
       float u = u_seq(t, i);
-      cost += Rf(i) * u * u;
+      cost += Rf(i) * u * u * dt;
+    }
+  }
+  // running state cost
+  for (int t = 0; t < x_seq.shape(0) - 1; ++t)
+  {
+    for (int i = 0; i < x_seq.shape(1); ++i)
+    {
+      float diff = x_seq(t, i) - x_target(i);
+      cost += diff * diff * Q(i) * dt;
     }
   }
   return cost;

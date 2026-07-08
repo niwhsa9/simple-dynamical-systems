@@ -40,14 +40,17 @@ int main()
   Qf(7) = 1.0;
   Qf(8) = 1.0;
   Qf(9) = 1.0;
+
+  Tensor<float, 1> Q(manager.get_aerial_vehicle_gpu().get_n_x());
+  Q.fill(0.0f);
   Tensor<float, 1> R(manager.get_aerial_vehicle_gpu().get_n_u());
   R.fill(0.01f);
 
   auto cost =
-      [target = x_target.view(), Qf = Qf.view(), R = R.view()] __device__(
+      [target = x_target.view(), Qf = Qf.view(), R = R.view(), Q = Q.view()] __device__(
           const TensorView<float, 2> &x_seq,
           const TensorView<float, 2> &u_seq) -> float
-  { return sds::quadratic_target_cost(target, Qf, R, x_seq, u_seq); };
+  { return sds::quadratic_target_cost(target, Qf, Q, R, x_seq, u_seq); };
 
   float dt = 0.05f;
 

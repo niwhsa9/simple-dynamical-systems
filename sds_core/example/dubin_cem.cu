@@ -118,15 +118,17 @@ int main()
 
   Tensor<float, 1> Qf(dubins_car.get_n_x());
   Qf.fill(400.0f);
+  Tensor<float, 1> Q(dubins_car.get_n_x());
+  Q.fill(0.0f);
 
   Tensor<float, 1> R(dubins_car.get_n_u());
   R.fill(0.01f);
 
   auto cost =
-      [target = x_target.view(), Qf = Qf.view(), R = R.view()] __device__(
+      [target = x_target.view(), Qf = Qf.view(), Q = Q.view(), R = R.view()] __device__(
           const TensorView<float, 2>& x_seq,
           const TensorView<float, 2>& u_seq) -> float
-  { return sds::quadratic_target_cost(target, Qf, R, x_seq, u_seq); };
+  { return sds::quadratic_target_cost(target, Qf, Q, R, x_seq, u_seq); };
 
   float dt = 0.05f;
 
