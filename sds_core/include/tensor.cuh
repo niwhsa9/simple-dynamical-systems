@@ -15,6 +15,7 @@
 #include <array>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Helper: checked CUDA call (host-only — throws std::runtime_error)
@@ -303,6 +304,7 @@ class Tensor : public TensorView<T, dim>
   //}
 
   Tensor<T, dim - 1> squeeze() &&
+    requires(dim > 1)
   {
     static_assert(dim > 1, "Cannot squeeze a 1-D Tensor.");
 
@@ -410,7 +412,9 @@ class Tensor : public TensorView<T, dim>
     for (size_t i = 0; i < n; ++i) this->data_[i] = value;
   }
 
+  // only for tensor 2
   void set_diag(const std::vector<T>& diag)
+    requires(dim == 2)
   {
     if (diag.size() != this->shape_[0] || diag.size() != this->shape_[1])
       throw std::runtime_error(
@@ -419,11 +423,12 @@ class Tensor : public TensorView<T, dim>
     for (size_t i = 0; i < diag.size(); ++i) this->operator()(i, i) = diag[i];
   }
 
-  void prefetch(int device = 0)
-  {
-    CUDA_CHECK(
-        cudaMemPrefetchAsync(this->data_, this->numel() * sizeof(T), device));
-  }
+  // void prefetch(int device = 0)
+  //{
+  //   CUDA_CHECK(
+  //       cudaMemPrefetchAsync(this->data_, this->numel() * sizeof(T),
+  //       device));
+  // }
 
   static void sync() { CUDA_CHECK(cudaDeviceSynchronize()); }
 

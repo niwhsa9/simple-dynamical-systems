@@ -6,9 +6,35 @@
 
 namespace sds
 {
-// TODO(amg) this is a little lazy, should probably replace with Tensor storage,
-// but then need to implement copy semantics on Tensor which I'd rather avoid.
-// Also, need to implement Tensors not backed by managed memory pages
+
+// zero order hold re-roll at finer dt
+// template <typename RolloutProvider<float>> f;
+// Tensor<float, 2> zoh_reroll(Tensor<float, 2> u, );
+// todo
+// keep_tape_after_time
+Tensor<float, 2> keep_tape_after_time(
+    const TensorView<float, 2>& x_seq, double start_time, double t, double dt,
+    int pad_to_T)
+{
+  int step = static_cast<int>(std::floor((t - start_time) / dt));
+  if (step < 0 || step >= x_seq.shape(0))
+    throw std::runtime_error(
+        "Time t is out of bounds for policy evaluation. t = " +
+        std::to_string(t) + ", start_time = " + std::to_string(start_time) +
+        ", dt = " + std::to_string(dt) + ", x_seq.shape(0) = " +
+        std::to_string(x_seq.shape(0)) + ", step = " + std::to_string(step));
+
+  Tensor<float, 2> result(pad_to_T, x_seq.shape(1));
+  result.fill(0.0f);
+  for (int i = 0; i < x_seq.shape(1); ++i)
+    for (int j = 0; j < x_seq.shape(0) - step; ++j)
+      result(j, i) = x_seq(j + step, i);
+
+  return result;
+}
+
+// TODO(amg) probably worth thinking about how this thing ends up on GPU,
+// LinearPolicy a nd LinearPolicyView? Yuck.
 struct LinearPolicy
 {
   Tensor<float, 3> K;          // N x nx x nu row major

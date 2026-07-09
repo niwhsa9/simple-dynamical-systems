@@ -39,7 +39,7 @@ class ReplanManager
             replan_cv
                 .notify_all();  // notify any threads that were blocked waiting
                                 // for a new policy to become available, only
-                                // matters for replan_blocking
+                                // matters for request_replan_blocking
           }
         });
     replan_loop.detach();
@@ -80,7 +80,7 @@ class ReplanManager
         current_request->project_steps * current_request->current_policy.dt;
     return std::make_unique<LinearPolicy>(optimizer->operator()(
         x_proj.template slice_1d<1>(current_request->project_steps),
-        projected_start_time, current_request->current_policy));
+        projected_start_time, &current_request->current_policy));
   }
 
   // Checks if the manager is in the READY state

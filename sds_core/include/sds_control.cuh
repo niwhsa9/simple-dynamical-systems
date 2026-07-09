@@ -147,10 +147,19 @@ template <RolloutProvider<float> P, typename Cost>
 Tensor<float, 2> cem(
     P& plant, const TensorView<float, 1>& x0, const Cost& cost, int T, int n_u,
     float dt, int n_samples = 512, int n_elites = 64, int n_iters = 100,
-    float sigma_init = 0.5f)
+    float sigma_init = 0.5f,
+    std::optional<TensorView<float, 2>> warm_start = std::nullopt)
 {
   Tensor<float, 2> u_mean(T, n_u);
   u_mean.fill(0.0f);
+  if (warm_start.has_value())
+  {
+    auto warm_start_view = warm_start.value();
+    if (warm_start_view.shape(0) != T || warm_start_view.shape(1) != n_u)
+      throw std::runtime_error(
+          "Warm start shape does not match T and n_u in cem");
+    u_mean.deep_copy_from(warm_start_view);
+  }
 
   Tensor<float, 2> u_std_dev(T, n_u);
   u_std_dev.fill(sigma_init);
