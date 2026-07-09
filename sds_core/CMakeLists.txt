@@ -15,7 +15,7 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
 
-add_library(sds_core STATIC src/sds_core.cpp)
+add_library(sds_core STATIC src/sds_core.cu)
 #add_library(sds_core INTERFACE)
 target_include_directories(sds_core
     PUBLIC
