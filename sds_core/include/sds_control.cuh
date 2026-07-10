@@ -47,6 +47,21 @@ Tensor<T, dim + 1> random_batch_tensor(
   return tensor;
 }
 
+// inplace version of random batch tensor
+template <typename T, int dim>
+void random_batch_tensor_inplace(
+    TensorView<T, dim + 1> tensor, const TensorView<T, dim>& mean,
+    const TensorView<T, dim>& std_dev)
+{
+  std::mt19937 rng(42);
+  for (int b = 0; b < tensor.shape(0); ++b)
+    for (int i = 0; i < mean.numel(); ++i)
+    {
+      std::normal_distribution<T> gauss(mean.data()[i], std_dev.data()[i]);
+      tensor.template slice<0>(b).data()[i] = gauss(rng);
+    }
+}
+
 __device__ inline float quadratic_target_cost(
     const TensorView<float, 1>& x_target, const TensorView<float, 1>& Qf,
     const TensorView<float, 1>& Q, const TensorView<float, 1>& Rf,
@@ -88,15 +103,13 @@ __device__ inline float quadratic_target_cost(
 //}
 
 template <typename T>
-std::tuple<Tensor<T, 2>, Tensor<T, 2>> cem_mean_std(
-    const TensorView<T, 3>& u, const TensorView<T, 1>& costs, int num_elites)
+void cem_mean_std(
+    TensorView<T, 2> mean, TensorView<T, 2> std_dev, const TensorView<T, 3>& u,
+    const TensorView<T, 1>& costs, int num_elites)
 {
   int batch_size = u.shape(0);
   int horizon = u.shape(1);
   int n_u = u.shape(2);
-
-  Tensor<T, 2> mean(horizon, n_u);
-  Tensor<T, 2> std_dev(horizon, n_u);
 
   std::vector<int> indices(batch_size);
   std::iota(indices.begin(), indices.end(), 0);
@@ -123,8 +136,6 @@ std::tuple<Tensor<T, 2>, Tensor<T, 2>> cem_mean_std(
       }
       std_dev(t, j) = std::sqrt(std_dev(t, j) / float(num_elites) + 1e-6f);
     }
-
-  return std::make_tuple(std::move(mean), std::move(std_dev));
 }
 
 // One thread per rollout — evaluates CostFunc on that rollout's x_seq/u_seq
@@ -141,6 +152,26 @@ __global__ void cost_kernel(
   auto x_b = x_seq.slice<0>(b);  // [T+1, n_x]
   auto u_b = u_seq.slice<0>(b);  // [T,   n_u]
   costs(b) = cost(x_b, u_b);
+}
+
+template <RolloutProvider<float> P, typename Cost>
+void cem(
+    TensorView<float, 2> u_mean, TensorView<float, 2> u_std_dev,
+    TensorView<float, 3> u_samples, TensorView<float, 1> costs, P& plant,
+    const TensorView<float, 1>& x0, const Cost& cost, int T, int n_u, float dt,
+    int n_samples = 512, int n_elites = 64, int n_iters = 100)
+{
+  for (int iter = 0; iter < n_iters; ++iter)
+  {
+    random_batch_tensor_inplace(u_samples, u_mean, u_std_dev);
+    auto x_samples = plant(x0, u_samples, dt);  // [N, T+1, n_x]
+
+    cost_kernel<<<(n_samples + 255) / 256, 256>>>(
+        cost, x_samples, u_samples, costs);
+    cudaDeviceSynchronize();
+
+    cem_mean_std(u_mean, u_std_dev, u_samples, costs, n_elites);
+  }
 }
 
 template <RolloutProvider<float> P, typename Cost>
@@ -164,20 +195,11 @@ Tensor<float, 2> cem(
   Tensor<float, 2> u_std_dev(T, n_u);
   u_std_dev.fill(sigma_init);
 
-  for (int iter = 0; iter < n_iters; ++iter)
-  {
-    auto u_samples =
-        random_batch_tensor(u_mean.view(), u_std_dev.view(), n_samples);
-    auto x_samples = plant(x0, u_samples.view(), dt);  // [N, T+1, n_x]
+  Tensor<float, 3> u_samples(n_samples, T, n_u);
+  Tensor<float, 1> costs(n_samples);
 
-    Tensor<float, 1> costs(n_samples);
-    cost_kernel<<<(n_samples + 255) / 256, 256>>>(
-        cost, x_samples.view(), u_samples.view(), costs.view());
-    cudaDeviceSynchronize();
-
-    std::tie(u_mean, u_std_dev) =
-        cem_mean_std(u_samples.view(), costs.view(), n_elites);
-  }
+  cem(u_mean.view(), u_std_dev.view(), u_samples, costs, plant, x0, cost, T,
+      n_u, dt, n_samples, n_elites, n_iters);
   return u_mean;
 }
 

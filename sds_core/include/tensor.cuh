@@ -17,6 +17,13 @@
 #include <type_traits>
 #include <vector>
 
+enum Memory
+{
+  Managed = 0,
+  Device = 1,
+  Host = 2,
+};
+
 // ---------------------------------------------------------------------------
 // Helper: checked CUDA call (host-only — throws std::runtime_error)
 // ---------------------------------------------------------------------------
@@ -65,6 +72,7 @@ struct TensorView
   T* data_;
   int shape_[dim];
   int strides_[dim];  // in elements
+  Memory memory;
 
   // ------------------------------------------------------------------
   // Default constructor — leaves fields uninitialised (matches old
@@ -132,6 +140,7 @@ struct TensorView
       v.strides_[out] = strides_[i];
       ++out;
     }
+    v.memory = memory;
     return v;
   }
 
@@ -147,6 +156,7 @@ struct TensorView
       v.shape_[i + 1] = shape_[i];
       v.strides_[i + 1] = strides_[i];
     }
+    v.memory = memory;
     return v;
   }
 
@@ -160,6 +170,7 @@ struct TensorView
       v.shape_[i] = shape_[i + 1];
       v.strides_[i] = strides_[i + 1];
     }
+    v.memory = memory;
     return v;
   }
 
@@ -203,6 +214,7 @@ struct TensorView
     v.data_ = ptr;
     v.shape_[0] = shape_[kept_dim];
     v.strides_[0] = strides_[kept_dim];
+    v.memory = memory;
     return v;
   }
 
@@ -221,12 +233,36 @@ struct TensorView
   __host__ __device__ void deep_copy_from(const TensorView<T, dim>& other)
   {
     size_t n = numel();
+#ifdef __CUDA_ARCH__
+    // Device-side: naive element loop, no cudaMemcpy available
     for (size_t i = 0; i < n; ++i) data_[i] = other.data_[i];
-    // for (int i = 0; i < dim; ++i) TODO(amg) maybe check shape compatibility
-    //{
-    //   shape_[i] = other.shape_[i];
-    //   strides_[i] = other.strides_[i];
-    // }
+#else
+    // Host-side: pick memcpy kind based on source and destination memory types
+    cudaMemcpyKind kind;
+    if (memory == Memory::Host && other.memory == Memory::Host)
+    {
+      kind = cudaMemcpyHostToHost;
+    }
+    else if (memory == Memory::Device && other.memory == Memory::Host)
+    {
+      kind = cudaMemcpyHostToDevice;
+    }
+    else if (memory == Memory::Host && other.memory == Memory::Device)
+    {
+      kind = cudaMemcpyDeviceToHost;
+    }
+    else if (memory == Memory::Device && other.memory == Memory::Device)
+    {
+      kind = cudaMemcpyDeviceToDevice;
+    }
+    else
+    {
+      // Either src or dst is Managed — cudaMemcpyDefault lets the driver figure
+      // it out
+      kind = cudaMemcpyDefault;
+    }
+    cudaMemcpy(data_, other.data_, n * sizeof(T), kind);
+#endif
   }
 
   // TODO(amg) might be a footgun to allow these implicit conversions, but makes
@@ -262,12 +298,7 @@ class Tensor : public TensorView<T, dim>
   using Base = TensorView<T, dim>;
 
  public:
-  enum Memory
-  {
-    Managed = 0,
-    Device = 1,
-    Host = 2,
-  } memory;
+  // Memory memory;
 
   // ------------------------------------------------------------------
   // Construction
@@ -275,8 +306,9 @@ class Tensor : public TensorView<T, dim>
 
   explicit Tensor(
       const std::array<int, dim>& shape, Memory memory = Memory::Managed)
-      : memory(memory)
+  //: memory(memory)
   {
+    this->memory = memory;
     for (int i = 0; i < dim; ++i) this->shape_[i] = shape[i];
     compute_strides();
     if (memory == Memory::Managed)
@@ -291,7 +323,14 @@ class Tensor : public TensorView<T, dim>
   template <
       typename... Dims, typename = std::enable_if_t<sizeof...(Dims) == dim>>
   explicit Tensor(Dims... dims)
-      : Tensor(std::array<int, dim>{static_cast<int>(dims)...})
+      : Tensor(std::array<int, dim>{static_cast<int>(dims)...}, Memory::Managed)
+  {
+  }
+
+  template <
+      typename... Dims, typename = std::enable_if_t<sizeof...(Dims) == dim>>
+  explicit Tensor(Memory memory, Dims... dims)
+      : Tensor(std::array<int, dim>{static_cast<int>(dims)...}, memory)
   {
   }
 
@@ -314,7 +353,7 @@ class Tensor : public TensorView<T, dim>
     T* stolen = this->data_;
     this->data_ = nullptr;
 
-    return Tensor<T, dim - 1>(AdoptPointer{}, stolen, shape);
+    return Tensor<T, dim - 1>(AdoptPointer{}, stolen, shape, this->memory);
   }
 
   // ------------------------------------------------------------------
@@ -325,9 +364,9 @@ class Tensor : public TensorView<T, dim>
   {
     if (this->data_)
     {
-      if (memory == Memory::Managed || memory == Memory::Device)
+      if (this->memory == Memory::Managed || this->memory == Memory::Device)
         CUDA_CHECK(cudaFree(this->data_));
-      else if (memory == Memory::Host)
+      else if (this->memory == Memory::Host)
         free(this->data_);
       this->data_ = nullptr;
     }
@@ -338,6 +377,7 @@ class Tensor : public TensorView<T, dim>
 
   Tensor(Tensor&& o) noexcept
   {
+    this->memory = o.memory;
     this->data_ = o.data_;
     o.data_ = nullptr;
     for (int i = 0; i < dim; ++i)
@@ -353,6 +393,7 @@ class Tensor : public TensorView<T, dim>
     {
       if (this->data_) cudaFree(this->data_);
       this->data_ = o.data_;
+      this->memory = o.memory;
       o.data_ = nullptr;
       for (int i = 0; i < dim; ++i)
       {
@@ -365,6 +406,7 @@ class Tensor : public TensorView<T, dim>
 
   Tensor<T, dim> clone() const
   {
+    // TODO(amg) handle various memory backings
     std::array<int, dim> shape;
     for (int i = 0; i < dim; ++i) shape[i] = this->shape_[i];
     Tensor<T, dim> out(shape);
@@ -436,8 +478,10 @@ class Tensor : public TensorView<T, dim>
   template <typename U, int other_dim>
   friend class Tensor;
 
-  Tensor(AdoptPointer, T* data, const std::array<int, dim>& shape)
+  Tensor(
+      AdoptPointer, T* data, const std::array<int, dim>& shape, Memory memory)
   {
+    this->memory = memory;
     this->data_ = data;
     for (int i = 0; i < dim; ++i) this->shape_[i] = shape[i];
     compute_strides();

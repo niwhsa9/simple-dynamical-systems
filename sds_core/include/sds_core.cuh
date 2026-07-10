@@ -53,7 +53,7 @@ concept Integrator =
 template <typename P, typename Scalar>
 concept RolloutProvider = requires(
     P plant, TensorView<Scalar, 1> x0, TensorView<Scalar, 3> u_seq, Scalar dt) {
-  { plant(x0, u_seq, dt) } -> std::convertible_to<Tensor<Scalar, 3>>;
+  { plant(x0, u_seq, dt) } -> std::convertible_to<TensorView<Scalar, 3>>;
 };
 
 // template <typename P>
@@ -134,6 +134,27 @@ __global__ void rollout_kernel(
   rollout(batch_idx, sys, integrator, x0, u_seq, dt, x_seq);
 }
 
+template <DynamicalSystem Sys, typename Integrator>
+void rollout_gpu(
+    TensorView<typename Sys::ScalarType, 3> x_seq, const Sys& sys,
+    const Integrator& integrator, const TensorView<float, 1>& x0,
+    TensorView<float, 3>& u_seq, float dt,
+    std::optional<std::tuple<int, int>> grid_block = std::nullopt)
+{
+  int batch_size = u_seq.shape(0);
+  int T = u_seq.shape(1);
+
+  int grid = (batch_size + 255) / 256;
+  int block = 256;
+  if (grid_block.has_value())
+  {
+    grid = std::get<0>(grid_block.value());
+    block = std::get<1>(grid_block.value());
+  }
+  rollout_kernel<<<grid, block>>>(sys, integrator, x0, u_seq, dt, x_seq);
+  CUDA_CHECK(cudaDeviceSynchronize());
+}
+
 // Note u is non-const due to bounds clamping
 // TODO(amg), maybe this thing need not to take a system at all, but rather a
 // function pointer to integrate and a struct with n_x, n_u, and bounds.
@@ -147,16 +168,7 @@ Tensor<typename Sys::ScalarType, 3> rollout_gpu(
   int T = u_seq.shape(1);
   int n_x = sys.get_n_x();
   Tensor<float, 3> x_seq(batch_size, T + 1, n_x);
-
-  int grid = (batch_size + 255) / 256;
-  int block = 256;
-  if (grid_block.has_value())
-  {
-    grid = std::get<0>(grid_block.value());
-    block = std::get<1>(grid_block.value());
-  }
-  rollout_kernel<<<grid, block>>>(sys, integrator, x0, u_seq, dt, x_seq.view());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  rollout_gpu(x_seq.view(), sys, integrator, x0, u_seq, dt, grid_block);
   return x_seq;
 }
 

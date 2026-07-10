@@ -160,4 +160,57 @@ std::pair<Tensor<float, 3>, Tensor<float, 3>> get_linearized_trajectory(
   return {std::move(A), std::move(B)};
 }
 
+// Reroll a trajectory at a finer dt using ZoH
+std::pair<Tensor<float, 2>, Tensor<float, 2>> zoh_reroll(
+    RolloutProvider<float> auto& plant, const TensorView<float, 2>& u_traj_orig,
+    const TensorView<float, 1>& x0, double old_dt, double new_dt)
+{
+  if (new_dt >= old_dt)
+    throw std::runtime_error(
+        "New dt must be smaller than old dt for rerolling.");
+
+  int ratio = static_cast<int>(std::round(old_dt / new_dt));
+  Tensor<float, 2> u_traj(u_traj_orig.shape(0) * ratio, u_traj_orig.shape(1));
+  Tensor<float, 2> x_traj(u_traj_orig.shape(0) * ratio + 1, x0.shape(0));
+  x_traj.slice_1d<1>(0).deep_copy_from(x0);
+
+  for (int i = 0; i < u_traj_orig.shape(0); ++i)
+  {
+    TensorView<float, 1> u_i = u_traj_orig.slice_1d<1>(i);
+    for (int j = 0; j < ratio; ++j)
+    {
+      int idx = i * ratio + j;
+      u_traj.slice_1d<1>(idx).deep_copy_from(u_i);
+    }
+  }
+
+  // Reroll the plant with the new control sequence
+  auto x_traj_reroll =
+      plant(x0, u_traj.view().unsqueeze(), static_cast<float>(new_dt))
+          .squeeze();
+
+  return {std::move(x_traj_reroll), std::move(u_traj)};
+}
+
+// Tensor<float, 2> decimate_trajectory(
+//     const TensorView<float, 2>& x_seq, float old_dt, float new_dt)
+//{
+//   if (new_dt <= old_dt)
+//     throw std::runtime_error(
+//         "New dt must be larger than old dt for decimating.");
+//
+//   int ratio = static_cast<int>(std::round(new_dt / old_dt));
+//   int new_length = (x_seq.shape(0) + ratio - 1) / ratio;  // ceil division
+//   Tensor<float, 2> x_decimated(new_length, x_seq.shape(1));
+//
+//   for (int i = 0; i < new_length; ++i)
+//   {
+//     int idx = i * ratio;
+//     if (idx >= x_seq.shape(0)) break;
+//     x_decimated.slice_1d<1>(i).deep_copy_from(x_seq.slice_1d<1>(idx));
+//   }
+//
+//   return x_decimated;
+// }
+
 }  // namespace sds
