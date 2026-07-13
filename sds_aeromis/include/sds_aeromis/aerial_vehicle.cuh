@@ -30,6 +30,7 @@ class AerialVehicle
 
   __host__ std::vector<std::string> get_x_names() const;
   __host__ std::vector<std::string> get_u_names() const;
+  __host__ std::vector<std::string> get_joint_names() const;
 
   __host__ __device__ Scalar* get_x_upper_bounds() const;
   __host__ __device__ Scalar* get_x_lower_bounds() const;

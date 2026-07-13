@@ -495,6 +495,23 @@ class Tensor : public TensorView<T, dim>
   }
 };
 
+template <typename U, typename T, int dim>
+Tensor<U, dim> cast_tensor_to(const TensorView<T, dim>& src)
+{
+  static_assert(
+      !std::is_same_v<T, U>,
+      "to<U>() called with same type as source — use clone() instead.");
+
+  std::array<int, dim> shape;
+  for (int i = 0; i < dim; ++i) shape[i] = src.shape_[i];
+
+  Tensor<U, dim> out(shape);
+  size_t n = src.numel();
+  for (size_t i = 0; i < n; ++i) out.data_[i] = static_cast<U>(src.data_[i]);
+
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Convenience aliases
 // ---------------------------------------------------------------------------

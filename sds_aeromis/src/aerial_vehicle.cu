@@ -59,6 +59,13 @@ __host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_x_names()
 }
 
 template <typename Mem, typename Scalar>
+__host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_joint_names()
+    const
+{
+  return aerial_vehicle_cpu_->get_joint_names();
+}
+
+template <typename Mem, typename Scalar>
 __host__ std::vector<std::string> AerialVehicle<Mem, Scalar>::get_u_names()
     const
 {

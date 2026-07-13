@@ -72,7 +72,7 @@ class ReplanManager
     auto [x_proj, u_proj] = simulate_plant_with_policy(
         plant, current_request->current_policy, current_request->x0.view(),
         current_request->current_policy.dt, current_request->request_time,
-        current_request->horizon);
+        current_request->project_steps);
 
     // Optimize a new policy from the projected state
     double projected_start_time =
@@ -173,10 +173,18 @@ Tensor<float, 1> replan_iterate(
   {
     // swap over to the new policy
     cur_policy = std::move(replan_manager.get_policy());
+
+    if (*maybe_available_plan_start_time - cur_time < -0.02)
+    {
+      std::cout
+          << "Warning: new plan is available but start time is in the past by "
+          << cur_time - *maybe_available_plan_start_time << " seconds"
+          << std::endl;
+    }
   }
 
-  // Request a new replan if we can
-  if (replan_manager.ready_to_replan())
+  // Request a new replan if we can and theres no new plan
+  if (replan_manager.ready_to_replan() && !maybe_available_plan_start_time)
   {
     replan_manager.request_replan(
         horizon, project_steps, cur_time, x_cur, *cur_policy);
