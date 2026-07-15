@@ -134,7 +134,7 @@ Tensor<float, 3> compute_tvlqr_gains(
 
 template <DynamicalSystem Dyn>
 std::pair<Tensor<float, 3>, Tensor<float, 3>> get_linearized_trajectory(
-    const Dyn& system, const TensorView<float, 2>& x_traj,
+    Dyn& system, const TensorView<float, 2>& x_traj,
     const TensorView<float, 2>& u_traj, float dt)
 {
   const int N = x_traj.shape(0);

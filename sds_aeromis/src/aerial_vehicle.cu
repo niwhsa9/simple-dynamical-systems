@@ -184,10 +184,11 @@ AerialVehicleManager::get_aerial_vehicle_cpu()
 
 template <typename Mem, typename Scalar>
 __host__ void AerialVehicle<Mem, Scalar>::get_dfdx(
-    Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx)
+    Scalar t, const float* x, const float* u, float* dfdx)
 {
-  std::vector<Scalar> dfdx_vec(n_x * n_x);
-  double delta = 1e-10;
+  std::vector<float> dfdx_vec(n_x * n_x);
+  std::vector<Scalar> u_vec(u, u + n_u);
+  double delta = 1e-6;
   for (int i = 0; i < n_x; ++i)
   {
     std::vector<Scalar> x_plus(x, x + n_x);
@@ -197,8 +198,8 @@ __host__ void AerialVehicle<Mem, Scalar>::get_dfdx(
 
     std::vector<Scalar> dxdt_plus(n_x);
     std::vector<Scalar> dxdt_minus(n_x);
-    dynamics(t, x_plus.data(), u, dxdt_plus.data());
-    dynamics(t, x_minus.data(), u, dxdt_minus.data());
+    dynamics(t, x_plus.data(), u_vec.data(), dxdt_plus.data());
+    dynamics(t, x_minus.data(), u_vec.data(), dxdt_minus.data());
 
     for (int j = 0; j < n_x; ++j)
       dfdx_vec[j * n_x + i] = (dxdt_plus[j] - dxdt_minus[j]) / (2 * delta);
@@ -208,10 +209,11 @@ __host__ void AerialVehicle<Mem, Scalar>::get_dfdx(
 
 template <typename Mem, typename Scalar>
 __host__ void AerialVehicle<Mem, Scalar>::get_dfdu(
-    Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdu)
+    Scalar t, const float* x, const float* u, float* dfdu)
 {
-  std::vector<Scalar> dfdu_vec(n_x * n_u);
-  double delta = 1e-10;
+  std::vector<float> dfdu_vec(n_x * n_u);
+  std::vector<Scalar> x_vec(x, x + n_x);
+  double delta = 1e-6;
   for (int i = 0; i < n_u; ++i)
   {
     std::vector<Scalar> u_plus(u, u + n_u);
@@ -221,8 +223,8 @@ __host__ void AerialVehicle<Mem, Scalar>::get_dfdu(
 
     std::vector<Scalar> dxdt_plus(n_x);
     std::vector<Scalar> dxdt_minus(n_x);
-    dynamics(t, x, u_plus.data(), dxdt_plus.data());
-    dynamics(t, x, u_minus.data(), dxdt_minus.data());
+    dynamics(t, x_vec.data(), u_plus.data(), dxdt_plus.data());
+    dynamics(t, x_vec.data(), u_minus.data(), dxdt_minus.data());
 
     for (int j = 0; j < n_x; ++j)
       dfdu_vec[j * n_u + i] = (dxdt_plus[j] - dxdt_minus[j]) / (2 * delta);

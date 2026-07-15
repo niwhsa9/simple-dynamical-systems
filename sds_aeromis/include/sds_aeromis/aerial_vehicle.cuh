@@ -28,10 +28,13 @@ class AerialVehicle
   __host__ __device__ int get_n_x() const;
   __host__ __device__ int get_n_u() const;
 
-  __host__ void get_dfdx(
-      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx);
-  __host__ void get_dfdu(
-      Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx);
+  //__host__ void get_dfdx(
+  //    Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx);
+  __host__ void get_dfdx(Scalar t, const float* x, const float* u, float* dfdx);
+  __host__ void get_dfdu(Scalar t, const float* x, const float* u, float* dfdu);
+
+  //__host__
+  // void get_dfdu(Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx);
 
   __host__ std::vector<std::string> get_x_names() const;
   __host__ std::vector<std::string> get_u_names() const;
