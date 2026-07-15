@@ -12,7 +12,8 @@ Tensor<float, 2> sds::keep_tape_after_time(
         ", dt = " + std::to_string(dt) + ", x_seq.shape(0) = " +
         std::to_string(x_seq.shape(0)) + ", step = " + std::to_string(step));
 
-  Tensor<float, 2> result(pad_to_T, x_seq.shape(1));
+  if (pad_to_T == -1) pad_to_T = x_seq.shape(0) - step;
+  Tensor<float, 2> result(Memory::Host, pad_to_T, x_seq.shape(1));
   result.fill(0.0f);
   for (int i = 0; i < x_seq.shape(1); ++i)
     for (int j = 0; j < x_seq.shape(0) - step; ++j)
@@ -49,7 +50,7 @@ Tensor<float, 3> sds::compute_tvlqr_gains(
   RowMajRef Qf_eig(Qf.data(), nX, nX);
   RowMajRef R_eig(R.data(), nU, nU);
 
-  Tensor<float, 3> K(N, nX, nU);
+  Tensor<float, 3> K(Memory::Host, N, nX, nU);
 
   MatX P = Qf_eig;  // convert to col-major working type
 
@@ -85,4 +86,29 @@ Tensor<float, 3> sds::compute_tvlqr_gains(
   }
 
   return K;
+}
+
+Tensor<float, 2> sds::decimate_trajectory(
+    const TensorView<float, 2>& x_seq, float old_dt, float new_dt)
+{
+  if (new_dt <= old_dt)
+    throw std::runtime_error(
+        "New dt must be larger than old dt for decimating.");
+
+  int ratio = static_cast<int>(std::round(new_dt / old_dt));
+
+  int T = x_seq.shape(0) / ratio;
+  Tensor<float, 2> x_decimated(Memory::Host, T, x_seq.shape(1));
+
+  for (int i = 0; i < T; ++i)
+  {
+    int idx = i * ratio;
+    if (idx >= x_seq.shape(0))
+      throw std::runtime_error(
+          "Index out of bounds when decimating trajectory: " +
+          std::to_string(idx) + " >= " + std::to_string(x_seq.shape(0)));
+    x_decimated.slice_1d<1>(i).deep_copy_from(x_seq.slice_1d<1>(idx));
+  }
+
+  return x_decimated;
 }

@@ -192,25 +192,7 @@ std::pair<Tensor<float, 2>, Tensor<float, 2>> zoh_reroll(
   return {std::move(x_traj_reroll), std::move(u_traj)};
 }
 
-// Tensor<float, 2> decimate_trajectory(
-//     const TensorView<float, 2>& x_seq, float old_dt, float new_dt)
-//{
-//   if (new_dt <= old_dt)
-//     throw std::runtime_error(
-//         "New dt must be larger than old dt for decimating.");
-//
-//   int ratio = static_cast<int>(std::round(new_dt / old_dt));
-//   int new_length = (x_seq.shape(0) + ratio - 1) / ratio;  // ceil division
-//   Tensor<float, 2> x_decimated(new_length, x_seq.shape(1));
-//
-//   for (int i = 0; i < new_length; ++i)
-//   {
-//     int idx = i * ratio;
-//     if (idx >= x_seq.shape(0)) break;
-//     x_decimated.slice_1d<1>(i).deep_copy_from(x_seq.slice_1d<1>(idx));
-//   }
-//
-//   return x_decimated;
-// }
+Tensor<float, 2> decimate_trajectory(
+    const TensorView<float, 2>& x_seq, float old_dt, float new_dt);
 
 }  // namespace sds

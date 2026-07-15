@@ -1,5 +1,6 @@
 #pragma once
 #include <Eigen/Dense>
+#include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -32,8 +33,11 @@ class ReplanManager
             std::unique_lock<std::mutex> lock(replan_mutex);
             replan_cv.wait(lock, [&]() { return state == REQUESTED; });
             lock.unlock();
+            auto plan_start_time = std::chrono::steady_clock::now();
             auto policy = replan();
             lock.lock();
+            last_replan_time =
+                std::chrono::steady_clock::now() - plan_start_time;
             new_policy = std::move(policy);
             state = READY;
             replan_cv
@@ -120,6 +124,12 @@ class ReplanManager
     return std::move(new_policy);
   }
 
+  double get_last_replan_time()
+  {
+    std::lock_guard<std::mutex> lock(replan_mutex);
+    return last_replan_time.count();
+  }
+
  private:
   enum State
   {
@@ -147,6 +157,8 @@ class ReplanManager
   std::unique_ptr<ReplanRequest> current_request;
   std::shared_ptr<PolicyOptimizer> optimizer;
   P plant;
+
+  std::chrono::duration<double> last_replan_time;
 };
 
 // This is just a helper function for the most common replanning loop logic. The

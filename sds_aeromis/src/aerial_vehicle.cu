@@ -182,6 +182,54 @@ AerialVehicleManager::get_aerial_vehicle_cpu()
       cpu_memory_buffer.data());
 }
 
+template <typename Mem, typename Scalar>
+__host__ void AerialVehicle<Mem, Scalar>::get_dfdx(
+    Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdx)
+{
+  std::vector<Scalar> dfdx_vec(n_x * n_x);
+  double delta = 1e-10;
+  for (int i = 0; i < n_x; ++i)
+  {
+    std::vector<Scalar> x_plus(x, x + n_x);
+    std::vector<Scalar> x_minus(x, x + n_x);
+    x_plus[i] += delta;
+    x_minus[i] -= delta;
+
+    std::vector<Scalar> dxdt_plus(n_x);
+    std::vector<Scalar> dxdt_minus(n_x);
+    dynamics(t, x_plus.data(), u, dxdt_plus.data());
+    dynamics(t, x_minus.data(), u, dxdt_minus.data());
+
+    for (int j = 0; j < n_x; ++j)
+      dfdx_vec[j * n_x + i] = (dxdt_plus[j] - dxdt_minus[j]) / (2 * delta);
+  }
+  std::copy(dfdx_vec.begin(), dfdx_vec.end(), dfdx);
+}
+
+template <typename Mem, typename Scalar>
+__host__ void AerialVehicle<Mem, Scalar>::get_dfdu(
+    Scalar t, const Scalar* x, const Scalar* u, Scalar* dfdu)
+{
+  std::vector<Scalar> dfdu_vec(n_x * n_u);
+  double delta = 1e-10;
+  for (int i = 0; i < n_u; ++i)
+  {
+    std::vector<Scalar> u_plus(u, u + n_u);
+    std::vector<Scalar> u_minus(u, u + n_u);
+    u_plus[i] += delta;
+    u_minus[i] -= delta;
+
+    std::vector<Scalar> dxdt_plus(n_x);
+    std::vector<Scalar> dxdt_minus(n_x);
+    dynamics(t, x, u_plus.data(), dxdt_plus.data());
+    dynamics(t, x, u_minus.data(), dxdt_minus.data());
+
+    for (int j = 0; j < n_x; ++j)
+      dfdu_vec[j * n_u + i] = (dxdt_plus[j] - dxdt_minus[j]) / (2 * delta);
+  }
+  std::copy(dfdu_vec.begin(), dfdu_vec.end(), dfdu);
+}
+
 // ---------------------------------------------------------------------------
 // rollout_to_csv
 // ---------------------------------------------------------------------------
