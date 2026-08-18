@@ -1,6 +1,8 @@
 #pragma once
 // #include <Eigen/Dense>
 // #include <Eigen/Geometry>
+#include <curand.h>
+
 #include <concepts>
 #include <iostream>
 #include <memory>
@@ -202,5 +204,18 @@ Tensor<float, 2> cem(
       n_u, dt, n_samples, n_elites, n_iters);
   return u_mean;
 }
+
+struct CEMData
+{
+  CEMData(int T, int n_u, int n_samples)
+      : u_mean(T, n_u), u_std_dev(T, n_u), u_samples(n_samples, T, n_u),
+        costs(n_samples)
+  {
+  }
+
+  Tensor<float, 2> u_mean, u_std_dev;
+  Tensor<float, 3> u_samples;
+  Tensor<float, 1> costs;
+};
 
 }  // namespace sds

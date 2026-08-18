@@ -13,6 +13,15 @@ Tensor<float, 2> sds::keep_tape_after_time(
         std::to_string(x_seq.shape(0)) + ", step = " + std::to_string(step));
 
   if (pad_to_T == -1) pad_to_T = x_seq.shape(0) - step;
+  if (pad_to_T <= 0)
+    throw std::runtime_error(
+        "pad_to_T must be positive. pad_to_T = " + std::to_string(pad_to_T));
+  if (pad_to_T < x_seq.shape(0) - step)
+    throw std::runtime_error(
+        "pad_to_T must be at least x_seq.shape(0) - step. pad_to_T = " +
+        std::to_string(pad_to_T) + ", x_seq.shape(0) = " +
+        std::to_string(x_seq.shape(0)) + ", step = " + std::to_string(step));
+
   Tensor<float, 2> result(Memory::Host, pad_to_T, x_seq.shape(1));
   result.fill(0.0f);
   for (int i = 0; i < x_seq.shape(1); ++i)
