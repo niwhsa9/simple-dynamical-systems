@@ -83,6 +83,22 @@ class RK2
   }
 };
 
+class Euler
+{
+ public:
+  template <DynamicalSystem Sys>
+  __host__ __device__ void operator()(
+      Sys& sys, typename Sys::ScalarType dt, typename Sys::ScalarType t,
+      const typename Sys::ScalarType* x, const typename Sys::ScalarType* u,
+      typename Sys::ScalarType* x_next)
+  {
+    typename Sys::ScalarType k1[64];
+
+    sys.dynamics(t, x, u, k1);
+    for (int i = 0; i < sys.get_n_x(); ++i) x_next[i] = x[i] + dt * k1[i];
+  }
+};
+
 template <typename Scalar>
 __host__ __device__ void clamp_to_bounds(
     const Scalar* lb, const Scalar* ub, int n_u, Scalar* u)
@@ -185,5 +201,25 @@ Tensor<typename Sys::ScalarType, 3> rollout_cpu(
     rollout(b, sys, integrator, x0, u_seq, dt, x_seq.view());
   return x_seq;
 }
+
+template <DynamicalSystem Sys, typename Integrator>
+class PlantCPU
+{
+ public:
+  PlantCPU(Sys& sys, Integrator& integrator) : sys(sys), integrator(integrator)
+  {
+  }
+
+  Tensor<typename Sys::ScalarType, 3> operator()(
+      const TensorView<typename Sys::ScalarType, 1>& x0,
+      TensorView<typename Sys::ScalarType, 3> u_seq, float dt)
+  {
+    return rollout_cpu(sys, integrator, x0, u_seq, dt);
+  }
+
+ private:
+  Sys& sys;
+  Integrator& integrator;
+};
 
 }  // namespace sds

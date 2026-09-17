@@ -50,29 +50,45 @@ Tensor<float, 3> sds::compute_tvlqr_gains(
   if (R.shape(0) != nU || R.shape(1) != nU)
     throw std::runtime_error("R must be nU x nU");
 
-  using MatX = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>;
+  using MatX = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
   using RowMajMatX =
-      Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
   using RowMajRef = Eigen::Map<const RowMajMatX>;
 
-  RowMajRef Q_eig(Q.data(), nX, nX);
-  RowMajRef Qf_eig(Qf.data(), nX, nX);
-  RowMajRef R_eig(R.data(), nU, nU);
+  // Map the float tensor data, then convert to double.
+  using FloatRowMajMatX =
+      Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+  using FloatRowMajRef = Eigen::Map<const FloatRowMajMatX>;
 
+  FloatRowMajRef Q_float(Q.data(), nX, nX);
+  FloatRowMajRef Qf_float(Qf.data(), nX, nX);
+  FloatRowMajRef R_float(R.data(), nU, nU);
+
+  MatX Q_eig = Q_float.cast<double>();
+  MatX Qf_eig = Qf_float.cast<double>();
+  MatX R_eig = R_float.cast<double>();
+
+  const double dt_d = static_cast<double>(dt);
+
+  // Output remains float.
   Tensor<float, 3> K(Memory::Host, N, nX, nU);
 
-  MatX P = Qf_eig;  // convert to col-major working type
+  MatX P = Qf_eig;
 
   for (int i = N - 1; i >= 0; --i)
   {
-    RowMajRef A_i(A.slice<0>(i).data(), nX, nX);
-    RowMajRef B_i(B.slice<0>(i).data(), nX, nU);
+    FloatRowMajRef A_i_float(A.slice<0>(i).data(), nX, nX);
+    FloatRowMajRef B_i_float(B.slice<0>(i).data(), nX, nU);
+
+    MatX A_i = A_i_float.cast<double>();
+    MatX B_i = B_i_float.cast<double>();
 
     MatX Ak, Bk;
+
     if (discretize)
     {
-      Ak = A_i * dt + MatX::Identity(nX, nX);
-      Bk = B_i * dt;
+      Ak = A_i * dt_d + MatX::Identity(nX, nX);
+      Bk = B_i * dt_d;
     }
     else
     {
@@ -80,22 +96,88 @@ Tensor<float, 3> sds::compute_tvlqr_gains(
       Bk = B_i;
     }
 
-    MatX BtPB = Bk.transpose() * P * Bk + R_eig * dt;
+    MatX BtPB = Bk.transpose() * P * Bk + R_eig * dt_d;
     MatX BtPA = Bk.transpose() * P * Ak;
-    MatX K_i = -BtPB.inverse() * BtPA;  // nU x nX
+    MatX K_i = -BtPB.inverse() * BtPA;
 
-    // Write K_i (nU x nX, Eigen default col-major) directly into the
-    // (nX x nU) row-major slice -- reproduces the transpose trick used
-    // in LinearPolicy::eval_policy.
-    Eigen::Map<MatX>(K.slice<0>(i).data(), nU, nX) = K_i;
+    // K_i is double, so cast back to float when writing to K.
+    Eigen::Map<
+        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+        K.slice<0>(i).data(), nX, nU) = K_i.transpose().cast<float>();
 
     P = Ak.transpose() * (P - P * Bk * BtPB.inverse() * Bk.transpose() * P) *
             Ak +
-        Q_eig * dt;
+        Q_eig * dt_d;
   }
 
   return K;
 }
+
+// Tensor<float, 3> sds::compute_tvlqr_gains(
+//     const TensorView<float, 3>& A, const TensorView<float, 3>& B,
+//     const TensorView<float, 2>& Q, const TensorView<float, 2>& Qf,
+//     const TensorView<float, 2>& R, float dt, bool discretize)
+//{
+//   const int N = A.shape(0);
+//   const int nX = A.shape(1);
+//   const int nU = B.shape(2);
+//
+//   if (A.shape(2) != nX) throw std::runtime_error("A must be N x nX x nX");
+//   if (B.shape(0) != N || B.shape(1) != nX)
+//     throw std::runtime_error("B must be N x nX x nU");
+//   if (Q.shape(0) != nX || Q.shape(1) != nX)
+//     throw std::runtime_error("Q must be nX x nX");
+//   if (Qf.shape(0) != nX || Qf.shape(1) != nX)
+//     throw std::runtime_error("Qf must be nX x nX");
+//   if (R.shape(0) != nU || R.shape(1) != nU)
+//     throw std::runtime_error("R must be nU x nU");
+//
+//   using MatX = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>;
+//   using RowMajMatX =
+//       Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+//   using RowMajRef = Eigen::Map<const RowMajMatX>;
+//
+//   RowMajRef Q_eig(Q.data(), nX, nX);
+//   RowMajRef Qf_eig(Qf.data(), nX, nX);
+//   RowMajRef R_eig(R.data(), nU, nU);
+//
+//   Tensor<float, 3> K(Memory::Host, N, nX, nU);
+//
+//   MatX P = Qf_eig;  // convert to col-major working type
+//
+//   for (int i = N - 1; i >= 0; --i)
+//   {
+//     RowMajRef A_i(A.slice<0>(i).data(), nX, nX);
+//     RowMajRef B_i(B.slice<0>(i).data(), nX, nU);
+//
+//     MatX Ak, Bk;
+//     if (discretize)
+//     {
+//       Ak = A_i * dt + MatX::Identity(nX, nX);
+//       Bk = B_i * dt;
+//     }
+//     else
+//     {
+//       Ak = A_i;
+//       Bk = B_i;
+//     }
+//
+//     MatX BtPB = Bk.transpose() * P * Bk + R_eig * dt;
+//     MatX BtPA = Bk.transpose() * P * Ak;
+//     MatX K_i = -BtPB.inverse() * BtPA;  // nU x nX
+//
+//     // Write K_i (nU x nX, Eigen default col-major) directly into the
+//     // (nX x nU) row-major slice -- reproduces the transpose trick used
+//     // in LinearPolicy::eval_policy.
+//     Eigen::Map<MatX>(K.slice<0>(i).data(), nU, nX) = K_i;
+//
+//     P = Ak.transpose() * (P - P * Bk * BtPB.inverse() * Bk.transpose() * P) *
+//             Ak +
+//         Q_eig * dt;
+//   }
+//
+//   return K;
+// }
 
 Tensor<float, 2> sds::decimate_trajectory(
     const TensorView<float, 2>& x_seq, float old_dt, float new_dt)
