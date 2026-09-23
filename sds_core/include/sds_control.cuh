@@ -4,8 +4,10 @@
 #include <curand.h>
 
 #include <concepts>
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <random>
 #include <span>
 #include <vector>
@@ -156,12 +158,15 @@ __global__ void cost_kernel(
   costs(b) = cost(x_b, u_b);
 }
 
-template <RolloutProvider<float> P, typename Cost>
+template <
+    RolloutProvider<float> P, typename Cost,
+    typename PreemptFn = std::nullptr_t>
 void cem(
     TensorView<float, 2> u_mean, TensorView<float, 2> u_std_dev,
     TensorView<float, 3> u_samples, TensorView<float, 1> costs, P& plant,
     const TensorView<float, 1>& x0, const Cost& cost, int T, int n_u, float dt,
-    int n_samples = 512, int n_elites = 64, int n_iters = 100)
+    int n_samples = 512, int n_elites = 64, int n_iters = 100,
+    PreemptFn preempt_callback = nullptr)
 {
   for (int iter = 0; iter < n_iters; ++iter)
   {
@@ -173,15 +178,23 @@ void cem(
     cudaDeviceSynchronize();
 
     cem_mean_std(u_mean, u_std_dev, u_samples, costs, n_elites);
+
+    if constexpr (!std::is_same_v<PreemptFn, std::nullptr_t>)
+    {
+      if (preempt_callback()) break;
+    }
   }
 }
 
-template <RolloutProvider<float> P, typename Cost>
+template <
+    RolloutProvider<float> P, typename Cost,
+    typename PreemptFn = std::nullptr_t>
 Tensor<float, 2> cem(
     P& plant, const TensorView<float, 1>& x0, const Cost& cost, int T, int n_u,
     float dt, int n_samples = 512, int n_elites = 64, int n_iters = 100,
     float sigma_init = 0.5f,
-    std::optional<TensorView<float, 2>> warm_start = std::nullopt)
+    std::optional<TensorView<float, 2>> warm_start = std::nullopt,
+    PreemptFn preempt_callback = nullptr)
 {
   Tensor<float, 2> u_mean(T, n_u);
   u_mean.fill(0.0f);
@@ -201,7 +214,7 @@ Tensor<float, 2> cem(
   Tensor<float, 1> costs(n_samples);
 
   cem(u_mean.view(), u_std_dev.view(), u_samples, costs, plant, x0, cost, T,
-      n_u, dt, n_samples, n_elites, n_iters);
+      n_u, dt, n_samples, n_elites, n_iters, preempt_callback);
   return u_mean;
 }
 
