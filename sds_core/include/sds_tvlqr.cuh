@@ -1,5 +1,6 @@
 #pragma once
 #include <Eigen/Dense>
+#include <cmath>
 
 #include "sds_core.cuh"
 #include "tensor.cuh"
@@ -62,9 +63,14 @@ struct LinearPolicy
   Tensor<float, 1> eval_policy(double t, const float* x) const
   {
     // ZOH: clamp to step_lower
-    int step = static_cast<int>(std::floor((t - start_time) / dt));
-    if (step < 0 || step >= x_nominal.shape(0))
+    if (!(dt > 0.0) || !std::isfinite(dt) || !std::isfinite(t) ||
+        !std::isfinite(start_time))
+      throw std::runtime_error("Invalid policy time or timestep");
+    const double step_value = std::floor((t - start_time) / dt);
+    if (step_value < 0 || step_value >= u_nominal.shape(0) ||
+        step_value >= K.shape(0) || step_value >= x_nominal.shape(0))
       throw std::runtime_error("Time t is out of bounds for policy evaluation");
+    const int step = static_cast<int>(step_value);
 
     // u = u_nominal[step] + K[step] * (x - x_nominal[step])
     Eigen::Map<const Eigen::VectorXf> x_eigen(x, nX);
@@ -137,9 +143,14 @@ std::pair<Tensor<float, 3>, Tensor<float, 3>> get_linearized_trajectory(
     Dyn& system, const TensorView<float, 2>& x_traj,
     const TensorView<float, 2>& u_traj, float dt)
 {
-  const int N = x_traj.shape(0);
+  const int N = u_traj.shape(0);
   const int nX = system.get_n_x();
   const int nU = system.get_n_u();
+  if (N <= 0 || x_traj.shape(0) != N + 1 ||
+      x_traj.shape(1) != nX || u_traj.shape(1) != nU)
+    throw std::runtime_error("Expected N controls and N+1 states with matching system dimensions");
+  if (!(dt > 0.0f) || !std::isfinite(dt))
+    throw std::runtime_error("Linearization timestep must be finite and positive");
 
   Tensor<float, 3> A(N, nX, nX);
   Tensor<float, 3> B(N, nX, nU);

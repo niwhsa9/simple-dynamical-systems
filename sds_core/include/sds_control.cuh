@@ -181,7 +181,11 @@ void cem(
 
     if constexpr (!std::is_same_v<PreemptFn, std::nullptr_t>)
     {
-      if (preempt_callback()) break;
+      if (preempt_callback())
+      {
+        std::cerr << "CEM Preempted at iteration " << iter << std::endl;
+        break;
+      }
     }
   }
 }
